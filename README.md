@@ -14,8 +14,10 @@ Nothing here depends on an external hosted service. Every component ships as a c
 error-message-library/
 ├── docker-compose.yml       # local stack: Postgres + Error Management UI + Error UI
 ├── docs/
-│   ├── error-code-schema.md          # canonical Error Code fields + API contract
-│   └── environments-and-promotion.md # environments + NonProd → Prod approval workflow
+│   ├── error-code-schema.md           # canonical Error Code fields + API contract
+│   ├── environments-and-promotion.md  # environments + NonProd → Prod approval workflow
+│   ├── management-ui-architecture.md  # Management UI architecture decision, stack, schema
+│   └── management-ui-backlog.md       # Management UI v1 backlog
 ├── error-management-ui/     # Admin app (frontend + backend API) for authoring & managing the error catalog
 ├── error-ui/                 # Embeddable UI that renders managed error messages to end users
 └── libraries/                # Client SDKs for consuming EML, one per programming language
@@ -41,6 +43,12 @@ The canonical contract — fields, lookup key, auto-registration behavior, and J
 
 ### [Environments & Promotion](docs/environments-and-promotion.md)
 How an Application's error codes move from NonProd authoring/testing to Prod: configurable environments, and the submit/approve promotion workflow (submitter and approver must differ) that guards updates to production.
+
+### [Management UI Architecture](docs/management-ui-architecture.md)
+Why the Management UI is a single fullstack Next.js app rather than a separate backend/frontend, plus its auth/RBAC design (Admin vs. Application Admin) and database schema.
+
+### [Management UI Backlog](docs/management-ui-backlog.md)
+The v1 feature backlog for the Management UI: login, Application registration and admin assignment, manual error code authoring, and the promotion workflow.
 
 ## How the pieces fit together
 
