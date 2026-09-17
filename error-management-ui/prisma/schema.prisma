@@ -133,13 +133,12 @@ model Application {
 }
 
 // NOTE: "exactly one production environment per Application"
-// (docs/environments-and-promotion.md) is a partial unique index —
-// e.g. CREATE UNIQUE INDEX ... ON "Environment" ("applicationId") WHERE "isProduction" —
-// which Prisma schema syntax cannot express directly. This needs a follow-up raw SQL
-// migration (a `prisma migrate dev --create-only` + hand-written SQL); do not attempt to
-// fake it with a plain @@unique here, since @@unique([applicationId, isProduction]) would
-// incorrectly allow one production AND one non-production row with the same flag combo
-// rather than capping production rows at one.
+// (docs/environments-and-promotion.md) is a partial unique index, which Prisma schema syntax
+// cannot express directly — do not attempt to fake it with a plain @@unique here, since
+// @@unique([applicationId, isProduction]) would incorrectly allow one production AND one
+// non-production row with the same flag combo rather than capping production rows at one.
+// Enforced instead by hand-written SQL in
+// prisma/migrations/20260917123800_db_level_constraints/migration.sql.
 model Environment {
   id            String   @id @default(cuid())
   applicationId String
@@ -219,10 +218,13 @@ model ErrorContent {
 // Promotion workflow (docs/environments-and-promotion.md)
 // ---------------------------------------------------------------------------
 
-// TODO: Two DB-level constraints from management-ui-architecture.md cannot be expressed in
-// Prisma schema syntax and need a follow-up raw SQL migration:
+// NOTE: Two DB-level constraints from management-ui-architecture.md cannot be expressed in
+// Prisma schema syntax, and are instead enforced by hand-written SQL in
+// prisma/migrations/20260917123800_db_level_constraints/migration.sql:
 //   1. CHECK (submitted_by_user_id <> reviewed_by_user_id) WHEN reviewed_by_user_id IS NOT NULL
-//      — defense-in-depth for the submitter-≠-approver rule (also enforced in the app layer).
+//      — defense-in-depth for the submitter-≠-approver rule (app-layer enforcement still
+//      belongs in whichever Server Action approves/rejects a PromotionRequest, once that
+//      Epic 6 feature is built — not yet implemented).
 //   2. A partial unique index on (errorMessageId, language, targetEnvironmentId)
 //      WHERE status = 'PENDING' — prevents two concurrent promotion requests racing for the
 //      same target.

@@ -20,7 +20,7 @@ This is the architecture decision for `error-management-ui`: one fullstack app, 
 |---|---|
 | Framework | Next.js 15 (App Router), TypeScript, single Node/Docker deploy |
 | ORM | Prisma, Postgres provider |
-| Auth | Auth.js (NextAuth) v5, Credentials provider (email + password), **database-backed sessions** via Prisma Adapter (not JWT-only — needed so an Admin can revoke a session/deactivate a user instantly) |
+| Auth | Auth.js (NextAuth) v5, Credentials provider (email + password), **JWT sessions** with an `isActive` re-check on every request (see "Auth & RBAC" below — not database-backed sessions, which Auth.js doesn't support alongside the Credentials provider) |
 | Password hashing | argon2id (bcrypt if native bindings are a container-build issue) |
 | Validation | zod, shared between Server Actions and route handlers |
 | Public API (Libraries + Error UI) | Plain REST JSON route handlers under `app/api/v1/*` — must stay framework-agnostic since Libraries are multi-language (Go/Python/Java/JS) |
@@ -29,7 +29,7 @@ This is the architecture decision for `error-management-ui`: one fullstack app, 
 
 ## Auth & RBAC
 
-**Login:** email + password via Auth.js Credentials provider, checked against `User.passwordHash`. Sessions are database-backed, so they're centrally revocable.
+**Login:** email + password via Auth.js Credentials provider, checked against `User.passwordHash`. Sessions are **JWT-based, not database-backed** — Auth.js does not support database sessions with the Credentials provider (its adapter session table is only populated by OAuth-style sign-in flows). Central revocation is preserved anyway: the `session` callback re-checks `User.isActive` from the database on every request, so an Admin deactivating a user takes effect on that user's very next request without them needing to sign out — it just can't be done by deleting one specific `Session` row while leaving others active, since none exist. (Corrected 2026-09-17 after this didn't actually boot — Auth.js throws `UnsupportedStrategy` otherwise.)
 
 **Roles** — a global enum on `User`, not per-Application:
 - `ADMIN` (super-admin) — registers Applications, manages Users, creates/removes Application Admin assignments. Implicit access to every Application (role check bypasses the assignment check; no assignment rows generated per app).
@@ -47,7 +47,7 @@ This is the architecture decision for `error-management-ui`: one fullstack app, 
 
 This resolves that doc's open question about who may submit vs. approve: anyone with access to the Application, as long as it's not the same person twice — which means an Application with only one assigned Application Admin needs an Admin in the approval loop. Worth knowing operationally: single-owner Applications can't self-approve promotions.
 
-**Session/credential storage:** the same Postgres database via Prisma (`User`, `Session`, plus Auth.js's `Account`/`VerificationToken` tables, kept unused for now so SSO/OIDC can be added later without a migration). No separate identity provider needed for v1.
+**Session/credential storage:** `User` lives in the same Postgres database via Prisma. `Session`/`Account`/`VerificationToken` (Auth.js's adapter tables) are also kept in the schema, unused for now under JWT sessions, so SSO/OIDC can be added later — a provider that supports database sessions — without a schema migration. No separate identity provider needed for v1.
 
 ## Database schema
 
