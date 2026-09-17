@@ -4,11 +4,13 @@ This is the canonical contract shared by [Error Management UI](../error-manageme
 
 ## Lookup key: `APPNAME + CODE`
 
-An Error Code is only unique **per app**. The same `CODE` (e.g. `AUTH_001`) can mean something different for `app-a` than for `app-b`. Every lookup and registration is keyed on the pair `(APPNAME, CODE)`, never `CODE` alone.
+An Error Code is only unique **per app**. The same `CODE` (e.g. `AUTH_001`) can mean something different for `app-a` than for `app-b`. Every lookup and registration is keyed on the pair `(APPNAME, CODE)`, never `CODE` alone. `APPNAME` refers to an **Application** registered in the Error Management UI — see [Environments & Promotion](environments-and-promotion.md) for how an Application's error codes are organized.
 
 `LANGUAGE` selects which locale's text comes back, without changing the code's identity.
 
-> A prior Prisma-based implementation modeled this same idea as `Vertical` (→ `APPNAME`) owning many `ErrorMessage` rows unique per `(errorCode, verticalId)` (→ per-app `CODE` uniqueness), each with per-locale `ErrorDetails` unique per `(errorId, language)` (→ `(APPNAME, CODE, LANGUAGE)`). Kept here as a naming/structure reference, not a decision to reuse `Vertical` as a name.
+`ENVIRONMENT` selects which environment's content comes back (e.g. a NonProd environment being authored/tested vs. the approved Prod content). See [Environments & Promotion](environments-and-promotion.md) for how environments and the Prod-approval workflow work — full lookup is `(APPNAME, CODE, LANGUAGE, ENVIRONMENT)`.
+
+> A prior Prisma-based implementation modeled the app-grouping idea as `Vertical` owning many `ErrorMessage` rows unique per `(errorCode, verticalId)`, each with per-locale `ErrorDetails`. A later, more complete prior implementation (a Go/GORM API) had already renamed `Vertical` to `Application` and split per-locale content into a per-`(language, environment)` `Environment` model — kept here as a naming/structure reference, not a decision to reuse any of it verbatim.
 
 ## Auto-registration
 
@@ -49,6 +51,7 @@ Field names only — no transport/endpoint decisions have been made yet.
   "appname": "string",
   "code": "string",
   "language": "string",
+  "environment": "string",
   "header": "string",
   "description": "string",
   "friendlyMessage": "string",
@@ -68,6 +71,6 @@ Field names only — no transport/endpoint decisions have been made yet.
 
 ## Where this is used
 
-- **Error Management UI** is the system of record: owners author/edit these fields per `(APPNAME, CODE)` and per locale, and its backend serves this JSON to everything else.
-- **Libraries** resolve a thrown/raised `CODE` to this JSON by calling the Management UI's API with `APPNAME + CODE + LANGUAGE`. The same JSON is either handed to Error UI for rendering, or returned as-is as a service's own API error response body (no UI involved).
+- **Error Management UI** is the system of record: owners author/edit these fields per `(APPNAME, CODE)`, per locale, and per environment, and its backend serves this JSON to everything else. Promoting authored content from a NonProd environment to a Prod environment goes through the approval workflow described in [Environments & Promotion](environments-and-promotion.md).
+- **Libraries** resolve a thrown/raised `CODE` to this JSON by calling the Management UI's API with `APPNAME + CODE + LANGUAGE + ENVIRONMENT`. The same JSON is either handed to Error UI for rendering, or returned as-is as a service's own API error response body (no UI involved).
 - **Error UI** renders this JSON as a full page or inline/toast based on `ALERT_STRING`, honoring `REDIRECT_URL` when set.
