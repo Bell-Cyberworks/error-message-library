@@ -11,9 +11,16 @@ import { prisma } from '@/lib/db/prisma';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
-  // Database-backed sessions (not JWT-only) so an Admin can revoke a session or deactivate
-  // a user instantly — see docs/management-ui-architecture.md, "Auth & RBAC".
-  session: { strategy: 'database' },
+  // Auth.js does not support database-backed sessions with the Credentials provider — the
+  // adapter's session table is only populated by its own sign-in flow (used by OAuth-style
+  // providers), and Auth.js refuses to boot otherwise ("UnsupportedStrategy: Signing in with
+  // credentials only supported if JWT strategy is enabled", https://errors.authjs.dev#unsupportedstrategy).
+  // This is a correction to docs/management-ui-architecture.md, which called for database
+  // sessions specifically so an Admin could deactivate a user instantly — that guarantee is
+  // preserved below via the `session` callback's `isActive` re-check on every request instead
+  // (it just can't be done by deleting a Session row, since none is created for Credentials
+  // logins). The PrismaAdapter is still wired up so a future OAuth/SSO provider is additive.
+  session: { strategy: 'jwt' },
   pages: {
     signIn: '/login',
   },
@@ -55,11 +62,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
-        session.user.role = (user as { role: Role }).role;
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = (user as { role: Role }).role;
       }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as Role;
+      }
+
+      // Re-check isActive on every request (not just at sign-in) so an Admin deactivating a
+      // user takes effect on that user's very next request, without them needing to sign out —
+      // the DB-revocation guarantee the architecture doc called for, adapted for JWT sessions.
+      const dbUser = await prisma.user.findUnique({
+        where: { id: token.id as string },
+        select: { isActive: true },
+      });
+
+      if (!dbUser?.isActive) {
+        // Auth.js has no built-in "reject this session" signal from the session callback;
+        // returning an empty user object is the documented way to make `auth()` treat the
+        // caller as unauthenticated (rbac.ts's guards all check `session?.user`).
+        return { ...session, user: undefined as never };
+      }
+
       return session;
     },
   },
