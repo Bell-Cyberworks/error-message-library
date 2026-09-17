@@ -1,0 +1,43 @@
+/* Minimal reset — no UI library / Tailwind for this scaffold; visual polish is a
+   follow-up once real features land. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  color: #1a1a1a;
+  background-color: #ffffff;
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+}
+
+nav ul {
+  display: flex;
+  gap: 1rem;
+  list-style: none;
+  margin: 0;
+  padding: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+}
