@@ -1,0 +1,260 @@
+// Prisma schema for error-management-ui.
+// See docs/management-ui-architecture.md ("Database schema") for the authoritative design
+// this file implements, and docs/error-code-schema.md for the ErrorContent field contract.
+
+// Prisma 7 no longer reads the connection URL from this block — it's resolved by
+// prisma.config.ts for migrations, and passed to PrismaClient via a driver adapter
+// (see src/lib/db/prisma.ts and prisma/seed.ts) at runtime.
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  APPLICATION_ADMIN
+}
+
+enum PromotionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js (next-auth v5) + RBAC
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String
+  name          String?
+  image         String?
+  role          Role
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Auth.js Prisma-adapter relations
+  accounts Account[]
+  sessions Session[]
+
+  // App relations
+  createdApplications Application[]                @relation("ApplicationCreatedBy")
+  adminAssignments    ApplicationAdminAssignment[]  @relation("AssignmentUser")
+  assignmentsGranted  ApplicationAdminAssignment[]  @relation("AssignmentGrantedBy")
+
+  submittedPromotionRequests PromotionRequest[] @relation("PromotionSubmittedBy")
+  reviewedPromotionRequests  PromotionRequest[] @relation("PromotionReviewedBy")
+}
+
+// Standard Auth.js Prisma-adapter shape — kept unused for now (Credentials-only) so
+// SSO/OIDC can be added later without a migration, per management-ui-architecture.md.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// Database-backed sessions (session.strategy = "database") so an Admin can revoke a
+// session / deactivate a user instantly, per management-ui-architecture.md.
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Standard Auth.js Prisma-adapter shape — unused while only the Credentials provider is
+// configured, kept for future email/magic-link or SSO providers.
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Applications, Environments, Admin assignment
+// ---------------------------------------------------------------------------
+
+model ApplicationAdminAssignment {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation("AssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  assignedByUserId String
+  assignedBy       User   @relation("AssignmentGrantedBy", fields: [assignedByUserId], references: [id])
+
+  assignedAt DateTime @default(now())
+
+  @@unique([userId, applicationId])
+}
+
+model Application {
+  id String @id @default(cuid())
+
+  name String @unique // this is APPNAME
+
+  createdByUserId String
+  createdBy       User   @relation("ApplicationCreatedBy", fields: [createdByUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  environments     Environment[]
+  errorMessages    ErrorMessage[]
+  adminAssignments ApplicationAdminAssignment[]
+}
+
+// NOTE: "exactly one production environment per Application"
+// (docs/environments-and-promotion.md) is a partial unique index —
+// e.g. CREATE UNIQUE INDEX ... ON "Environment" ("applicationId") WHERE "isProduction" —
+// which Prisma schema syntax cannot express directly. This needs a follow-up raw SQL
+// migration (a `prisma migrate dev --create-only` + hand-written SQL); do not attempt to
+// fake it with a plain @@unique here, since @@unique([applicationId, isProduction]) would
+// incorrectly allow one production AND one non-production row with the same flag combo
+// rather than capping production rows at one.
+model Environment {
+  id            String   @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  name         String // owner-defined display name (e.g. "Dev", "QA", "NonProd", "Prod")
+  isProduction Boolean @default(false)
+  sortOrder    Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  errorContents      ErrorContent[]
+  promotionsAsSource PromotionRequest[] @relation("PromotionSource")
+  promotionsAsTarget PromotionRequest[] @relation("PromotionTarget")
+
+  @@unique([applicationId, name])
+}
+
+// ---------------------------------------------------------------------------
+// Error codes and per-(language, environment) content
+// ---------------------------------------------------------------------------
+
+model ErrorMessage {
+  id            String   @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  code String // the CODE half of the (APPNAME, CODE) key
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contents          ErrorContent[]
+  promotionRequests PromotionRequest[]
+
+  @@unique([applicationId, code])
+}
+
+// One row per (APPNAME, CODE, LANGUAGE, ENVIRONMENT) lookup grain — see
+// docs/error-code-schema.md for field meanings and docs/environments-and-promotion.md for
+// why content is independently copied per environment.
+model ErrorContent {
+  id             String       @id @default(cuid())
+  errorMessageId String
+  errorMessage   ErrorMessage @relation(fields: [errorMessageId], references: [id], onDelete: Cascade)
+
+  language      String
+  environmentId String
+  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  header           String
+  description      String
+  friendlyMessage  String
+  category         String
+  errorCategory    String
+  httpCode         Int
+  alertString      String
+  redirectUrl      String?
+  eventId          String?
+  eventCategory    String?
+  transIdDisplay   Boolean
+  retryEnabled     Boolean
+  errorCodeDisplay Boolean
+
+  // Default true; cleared on first manual edit per management-ui-architecture.md /
+  // error-code-schema.md's auto-registration behavior.
+  needsAuthoring Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([errorMessageId, language, environmentId])
+}
+
+// ---------------------------------------------------------------------------
+// Promotion workflow (docs/environments-and-promotion.md)
+// ---------------------------------------------------------------------------
+
+// TODO: Two DB-level constraints from management-ui-architecture.md cannot be expressed in
+// Prisma schema syntax and need a follow-up raw SQL migration:
+//   1. CHECK (submitted_by_user_id <> reviewed_by_user_id) WHEN reviewed_by_user_id IS NOT NULL
+//      — defense-in-depth for the submitter-≠-approver rule (also enforced in the app layer).
+//   2. A partial unique index on (errorMessageId, language, targetEnvironmentId)
+//      WHERE status = 'PENDING' — prevents two concurrent promotion requests racing for the
+//      same target.
+model PromotionRequest {
+  id String @id @default(cuid())
+
+  errorMessageId String
+  errorMessage   ErrorMessage @relation(fields: [errorMessageId], references: [id], onDelete: Cascade)
+  language       String
+
+  sourceEnvironmentId String
+  sourceEnvironment   Environment @relation("PromotionSource", fields: [sourceEnvironmentId], references: [id])
+
+  targetEnvironmentId String
+  targetEnvironment   Environment @relation("PromotionTarget", fields: [targetEnvironmentId], references: [id])
+
+  // Write-once audit snapshot of the submitted content — must survive later edits to the
+  // live source ErrorContent row, so it's stored as JSON rather than a relation.
+  contentSnapshot Json
+
+  status PromotionStatus @default(PENDING)
+
+  submittedByUserId String
+  submittedBy       User     @relation("PromotionSubmittedBy", fields: [submittedByUserId], references: [id])
+  submittedAt       DateTime @default(now())
+
+  reviewedByUserId String?
+  reviewedBy       User?     @relation("PromotionReviewedBy", fields: [reviewedByUserId], references: [id])
+  reviewedAt       DateTime?
+
+  rejectionReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

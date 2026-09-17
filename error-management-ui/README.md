@@ -19,16 +19,41 @@ See [Error Code Schema](../docs/error-code-schema.md) for the field contract thi
 
 ## Planned Structure
 
+One deployable Next.js app (App Router, TypeScript) — frontend and backend API in the same codebase and container, not a separate backend service plus frontend. See [Management UI Architecture](../docs/management-ui-architecture.md) for the full rationale, tech stack, auth/RBAC design, and database schema.
+
 ```
 error-management-ui/
-├── frontend/       # Admin web app (framework TBD)
-├── backend/        # API service: app registration, error CRUD, public lookup endpoint (Postgres)
-├── Dockerfile      # Container image for this service
-└── tests/
+├── prisma/
+│   ├── schema.prisma
+│   ├── seed.ts
+│   └── migrations/
+├── src/
+│   ├── app/
+│   │   ├── (admin)/                # session-gated route group: applications/, users/
+│   │   ├── (auth)/login/
+│   │   ├── api/
+│   │   │   ├── auth/[...nextauth]/ # Auth.js route handler
+│   │   │   └── v1/                 # public API — Libraries + Error UI consume this
+│   │   │       ├── lookup/
+│   │   │       └── health/
+│   │   └── layout.tsx
+│   ├── lib/
+│   │   ├── auth/                   # Auth.js config + requireRole()/requireApplicationAccess()
+│   │   ├── db/                     # Prisma client singleton
+│   │   ├── services/               # shared business logic (Server Actions AND route handlers)
+│   │   └── validation/             # zod schemas
+│   ├── actions/                    # Server Actions for admin-side mutations
+│   └── components/
+├── Dockerfile
+└── package.json
 ```
 
 Runs as one of the services in the root [docker-compose.yml](../docker-compose.yml), backed by the `postgres` service defined there.
 
 ## Status
 
-Structure only — no implementation yet. Frontend framework and backend stack are still open.
+**Scaffold in place, features still stubs.** The initial skeleton exists: the Prisma schema (Users/roles, Applications, Environments, ErrorMessage/ErrorContent, PromotionRequest), Auth.js credentials login with database-backed sessions, the `requireRole`/`requireApplicationAccess` RBAC guards, the full App Router route structure (including the `(admin)` session-gated group), and a working `/api/v1/lookup` read path and `/api/v1/health` check. `lib/services/*`, `actions/*`, `components/`, and most page content are not yet implemented — each stub page has a `// TODO:` comment referencing the backlog story it corresponds to.
+
+Session gating for the `(admin)` group happens in `src/app/(admin)/layout.tsx` (a Server Component `auth()` check), not edge middleware — database-backed sessions need a Postgres round-trip, which the pg driver and argon2's native binding can't do on the Edge runtime. Server Actions and route handlers still must call `requireRole()`/`requireApplicationAccess()` themselves; the layout guard only covers page navigation.
+
+See [Management UI Architecture](../docs/management-ui-architecture.md) for the design this scaffold follows, and [Management UI v1 Backlog](../docs/management-ui-backlog.md) for what's still to build.
