@@ -14,7 +14,8 @@ Nothing here depends on an external hosted service. Every component ships as a c
 error-message-library/
 ├── docker-compose.yml       # local stack: Postgres + Error Management UI + Error UI
 ├── docs/
-│   └── error-code-schema.md # canonical Error Code fields + API contract
+│   ├── error-code-schema.md          # canonical Error Code fields + API contract
+│   └── environments-and-promotion.md # environments + NonProd → Prod approval workflow
 ├── error-management-ui/     # Admin app (frontend + backend API) for authoring & managing the error catalog
 ├── error-ui/                 # Embeddable UI that renders managed error messages to end users
 └── libraries/                # Client SDKs for consuming EML, one per programming language
@@ -38,11 +39,15 @@ Per-language client SDKs. Application code never writes error text — it just t
 ### [Error Code Schema](docs/error-code-schema.md)
 The canonical contract — fields, lookup key, auto-registration behavior, and JSON shape — that all three components above agree on.
 
+### [Environments & Promotion](docs/environments-and-promotion.md)
+How an Application's error codes move from NonProd authoring/testing to Prod: configurable environments, and the submit/approve promotion workflow (submitter and approver must differ) that guards updates to production.
+
 ## How the pieces fit together
 
-1. An app owner registers their app and authors its error codes in the **Error Management UI**.
-2. Application code throws/raises an error **code** — nothing else. The **Library** for that language (configured with the app's name) intercepts the throw and calls the Management UI's API with `APPNAME + CODE + LANGUAGE`. If the code is new, it's auto-registered with placeholder text and flagged for the owner to author later — the call still succeeds.
+1. An app owner registers their app and authors its error codes in the **Error Management UI**, per environment.
+2. Application code throws/raises an error **code** — nothing else. The **Library** for that language (configured with the app's name and environment) intercepts the throw and calls the Management UI's API with `APPNAME + CODE + LANGUAGE + ENVIRONMENT`. If the code is new, it's auto-registered with placeholder text and flagged for the owner to author later — the call still succeeds.
 3. The resulting JSON is either handed to **Error UI** to render (full page or inline/toast, based on the error's display mode) or returned directly as a service's own API error response when there's no UI involved at all.
+4. Once content is authored and tested in a NonProd environment, the owner submits it for promotion to Prod; a different user must approve it before it goes live — see [Environments & Promotion](docs/environments-and-promotion.md).
 
 ## Local Development
 
