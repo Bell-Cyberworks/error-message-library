@@ -1,0 +1,32 @@
+# Local stack for build/test — same shape intended for self-hosted deployment.
+# Placeholder: error-management-ui and error-ui images don't exist yet.
+# `docker-compose up postgres` works today; the other services will come online
+# as each component gets its Dockerfile.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: eml
+      POSTGRES_PASSWORD: eml
+      POSTGRES_DB: eml
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # error-management-ui:
+  #   build: ./error-management-ui
+  #   depends_on:
+  #     - postgres
+  #   ports:
+  #     - "8080:8080"
+
+  # error-ui:
+  #   build: ./error-ui
+  #   depends_on:
+  #     - error-management-ui
+  #   ports:
+  #     - "8081:8081"
+
+volumes:
+  postgres-data:
