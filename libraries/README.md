@@ -18,7 +18,7 @@ Each language is free to choose its own idiomatic interception mechanism — see
 |---|---|
 | [JavaScript/TypeScript](javascript/README.md) | Implemented |
 | [Python](python/README.md) | Implemented |
-| [Go](go/README.md) | Structure only |
+| [Go](go/README.md) | Implemented |
 | [Java](java/README.md) | Implemented |
 
 More languages can be added following the same contract and directory layout.
