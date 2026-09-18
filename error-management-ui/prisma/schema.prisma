@@ -51,6 +51,9 @@ model User {
 
   submittedPromotionRequests PromotionRequest[] @relation("PromotionSubmittedBy")
   reviewedPromotionRequests  PromotionRequest[] @relation("PromotionReviewedBy")
+
+  createdApplicationApiKeys ApplicationApiKey[] @relation("ApplicationApiKeyCreatedBy")
+  createdSystemApiKeys      SystemApiKey[]      @relation("SystemApiKeyCreatedBy")
 }
 
 // Standard Auth.js Prisma-adapter shape — kept unused for now (Credentials-only) so
@@ -130,6 +133,7 @@ model Application {
   environments     Environment[]
   errorMessages    ErrorMessage[]
   adminAssignments ApplicationAdminAssignment[]
+  apiKeys          ApplicationApiKey[]
 }
 
 // NOTE: "exactly one production environment per Application"
@@ -266,4 +270,57 @@ model PromotionRequest {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// API keys (public lookup endpoint authentication)
+// ---------------------------------------------------------------------------
+
+// Per-Application key for the public lookup API (src/app/api/v1/lookup/route.ts) — grants
+// read/auto-registration access to this Application's error codes only. Revocation is
+// soft-delete (revokedAt), never row deletion, consistent with this project's other
+// audit-trail-like data (PromotionRequest history above is never deleted either). The raw key
+// itself is never stored — only its argon2 hash (keyHash) plus a short, non-secret prefix
+// (keyPrefix) used to narrow a DB lookup before verifying the hash. See
+// src/lib/apiKeys/generateApiKey.ts and src/lib/services/apiKeys.ts.
+model ApplicationApiKey {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  name String
+
+  keyPrefix String
+  keyHash   String
+
+  createdByUserId String
+  createdBy       User   @relation("ApplicationApiKeyCreatedBy", fields: [createdByUserId], references: [id])
+
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  @@unique([applicationId, name])
+  @@index([keyPrefix])
+}
+
+// System-level key for the public lookup API, used by callers (Error UI) that look up
+// whichever Application a caller sends them to, rather than holding one Application's key
+// ahead of time — grants read/auto-registration access across every Application. Same
+// hashing/soft-delete conventions as ApplicationApiKey above.
+model SystemApiKey {
+  id   String @id @default(cuid())
+  name String @unique
+
+  keyPrefix String
+  keyHash   String
+
+  createdByUserId String
+  createdBy       User   @relation("SystemApiKeyCreatedBy", fields: [createdByUserId], references: [id])
+
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  @@index([keyPrefix])
 }

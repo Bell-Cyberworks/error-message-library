@@ -8,6 +8,14 @@ An Error Code is only unique **per app**. The same `CODE` (e.g. `AUTH_001`) can 
 
 `LANGUAGE` selects which locale's text comes back, without changing the code's identity.
 
+> **Authentication:** `GET /api/v1/lookup` requires an `Authorization: Bearer <key>` header —
+> either a per-Application API key (issued from that Application's API Keys page in the Error
+> Management UI) or a system-level key (for Error UI/trusted internal tooling that resolves
+> whichever Application a caller sends it, rather than holding one Application's key ahead of
+> time). A missing, invalid, or wrong-scope key returns `401`, with no distinction in the
+> response between those cases. See `error-management-ui/src/lib/services/apiKeys.ts` for the
+> mechanics.
+
 `ENVIRONMENT` selects which environment's content comes back (e.g. a NonProd environment being authored/tested vs. the approved Prod content). See [Environments & Promotion](environments-and-promotion.md) for how environments and the Prod-approval workflow work — full lookup is `(APPNAME, CODE, LANGUAGE, ENVIRONMENT)`.
 
 > A prior Prisma-based implementation modeled the app-grouping idea as `Vertical` owning many `ErrorMessage` rows unique per `(errorCode, verticalId)`, each with per-locale `ErrorDetails`. A later, more complete prior implementation (a Go/GORM API) had already renamed `Vertical` to `Application` and split per-locale content into a per-`(language, environment)` `Environment` model — kept here as a naming/structure reference, not a decision to reuse any of it verbatim.

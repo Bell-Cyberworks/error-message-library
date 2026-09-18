@@ -30,6 +30,11 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
               <Link href="/users">Users</Link>
             </li>
           ) : null}
+          {isAdmin ? (
+            <li>
+              <Link href="/system-api-keys">System API Keys</Link>
+            </li>
+          ) : null}
         </ul>
       </nav>
       <main>{children}</main>

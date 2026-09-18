@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getApplicationByName } from '@/lib/services/applications';
 import { getEnvironmentByName } from '@/lib/services/environments';
 import { findOrAutoRegisterErrorContent } from '@/lib/services/errorCodes';
+import { verifyApiKeyForApplication } from '@/lib/services/apiKeys';
 
 // Public lookup endpoint — see docs/error-code-schema.md ("Response shape (sketch)") for
 // the field-name contract this must match exactly, since Libraries (multi-language) and
@@ -45,6 +46,30 @@ export async function GET(request: NextRequest) {
       },
       { status: 404 },
     );
+  }
+
+  // Application/Environment *names* aren't treated as secret in this system (an app owner
+  // already knows their own app's name, and app names appear throughout the admin UI, logs,
+  // etc.) — only the actual error content and the ability to trigger auto-registration are
+  // gated behind a key. This keeps the 404s above for a typo'd APPNAME/ENVIRONMENT unchanged
+  // (still useful for a developer debugging their own misconfigured env vars) while still
+  // protecting the thing that actually matters. See docs/error-code-schema.md.
+  const authorizationHeader = request.headers.get('authorization');
+  const rawKey = authorizationHeader?.startsWith('Bearer ') ? authorizationHeader.slice(7) : null;
+
+  if (!rawKey) {
+    return NextResponse.json({ error: 'Missing or invalid Authorization header.' }, { status: 401 });
+  }
+
+  const keyScope = await verifyApiKeyForApplication({ applicationId: application.id, rawKey });
+
+  if (!keyScope) {
+    // Deliberately the exact same body/status as the !rawKey branch above — "no key provided",
+    // "key doesn't parse", "key not found", and "key valid but wrong Application" must all be
+    // indistinguishable to the caller, so a response difference can't be used to probe which
+    // Applications/keys exist. Written as two returns rather than one collapsed early return so
+    // it's visually obvious at the call site that both produce an identical response.
+    return NextResponse.json({ error: 'Missing or invalid Authorization header.' }, { status: 401 });
   }
 
   const { errorMessage, content } = await findOrAutoRegisterErrorContent({

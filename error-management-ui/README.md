@@ -58,6 +58,16 @@ Session gating for the `(admin)` group happens in `src/app/(admin)/layout.tsx` (
 
 See [Management UI Architecture](../docs/management-ui-architecture.md) for the design this scaffold follows, and [Management UI v1 Backlog](../docs/management-ui-backlog.md) for what's still to build.
 
+### API key authentication
+
+`GET /api/v1/lookup` now requires an `Authorization: Bearer <key>` header — either a
+per-Application key, issued and revoked from `/applications/[applicationId]/api-keys`, or a
+system-level key (cross-Application, for trusted internal tooling like Error UI), issued and
+revoked from `/system-api-keys` (Admin only). A missing, invalid, or wrong-scope key returns
+`401`. See [Error Code Schema](../docs/error-code-schema.md) for the caller-facing contract and
+`src/lib/services/apiKeys.ts` for the implementation. This is a breaking change for any existing
+caller of the public lookup API — acceptable per this project's pre-1.0 versioning.
+
 ### Automated tests
 
 An automated test suite now exists under `tests/` (Vitest), running against a real Postgres test database rather than mocks — the same scenarios every prior PR up to this point verified with manual throwaway scripts. Covered: every `src/lib/services/*.ts` module (`applications`, `environments`, `errorCodes` — including the public lookup API's auto-registration concurrency/race path — `promotions`, `users`), `src/lib/auth/rbac.ts`'s `requireRole()`/`requireApplicationAccess()` guards, and `src/app/api/v1/lookup/route.ts` invoked directly. **Server Actions** (`src/actions/*.ts`) are explicitly out of scope — see `tests/README.md` for why.
