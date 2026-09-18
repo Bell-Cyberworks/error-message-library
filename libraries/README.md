@@ -16,7 +16,7 @@ Each language is free to choose its own idiomatic interception mechanism — see
 
 | Language | Status |
 |---|---|
-| [JavaScript/TypeScript](javascript/README.md) | Structure only |
+| [JavaScript/TypeScript](javascript/README.md) | Implemented |
 | [Python](python/README.md) | Structure only |
 | [Go](go/README.md) | Structure only |
 | [Java](java/README.md) | Implemented |
