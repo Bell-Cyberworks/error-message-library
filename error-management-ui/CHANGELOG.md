@@ -5,6 +5,59 @@ All notable changes to `error-management-ui` are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version
 numbers follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-09-18
+
+### Added
+
+- Epic 6: Promotion workflow (US-6.1–US-6.5).
+  - **US-6.1** — Application Admins (and Admins) can submit a NonProd `(code, language)`
+    content row for promotion to the Application's production Environment, from the code
+    detail page (`/applications/[applicationId]/codes/[codeId]`). This creates a `PENDING`
+    `PromotionRequest` with a `contentSnapshot` JSON copy of every content field at submit
+    time — later edits to the live source row never retroactively change what's under review.
+    Submitting from a production row, or when a `PENDING` request already exists for that
+    exact `(code, language, target environment)`, is rejected server-side with a typed error
+    (`InvalidPromotionSourceError` / `DuplicatePendingPromotionError`, the latter backed by the
+    DB's `PromotionRequest_no_duplicate_pending_key` partial unique index).
+  - **US-6.2/US-6.5** — A new Promotions page
+    (`/applications/[applicationId]/promotions`, replacing the Epic 2 stub) shows a **Pending
+    review** queue (code, language, source→target Environment, submitter, submitted time, a
+    header/description preview of the snapshot) and a read-only **History** table of every
+    request regardless of status (submitter, reviewer, timestamps, rejection reason).
+  - **US-6.3/US-6.4** — Eligible reviewers can approve (upserts the snapshot into the target
+    production `ErrorContent` row, keyed on `errorMessageId_language_environmentId`, and clears
+    `needsAuthoring`) or reject (with a required reason; production content is left untouched)
+    a pending request. The submitter cannot review their own request — enforced server-side
+    (`SelfReviewError`, thrown before the DB is ever touched, so the user sees a clean typed
+    error rather than the DB's `PromotionRequest_submitter_not_reviewer_check` constraint
+    violation) and reflected in the UI (the promotions page hides the Approve/Reject controls
+    for a request's own submitter, showing an explanatory note instead).
+  - The code detail page's NonProd rows now show a "Submit for promotion" form
+    (`SubmitPromotionForm`) unless a promotion is already pending for that row's
+    `(language, production environment)` pair, in which case "Promotion pending." is shown
+    instead. The production section's stale "Edit via promotion (not yet implemented)." note
+    is replaced with "Read-only — content here only changes via an approved promotion
+    request.", since Epic 6 now exists.
+- New shared modules: `src/lib/validation/promotions.ts` (zod schemas),
+  `src/lib/services/promotions.ts` (business logic + typed
+  `InvalidPromotionSourceError`/`DuplicatePendingPromotionError`/
+  `PromotionRequestNotPendingError`/`SelfReviewError`, `$transaction`-backed approval),
+  `src/actions/promotions.ts` (Server Actions, guarded by `requireApplicationAccess()` with
+  ownership resolved first for actions keyed on `errorContentId`/`promotionRequestId`), and two
+  client components (`SubmitPromotionForm`, `PromotionReviewControls`).
+
+### Changed
+
+- `/applications/[applicationId]` (the Application dashboard) now links to the new Promotions
+  page, alongside the existing "Manage Environments" and "Manage Application Admins" links.
+
+### Notes
+
+- No `prisma/schema.prisma` model changes — the Epic 6 data model (`PromotionRequest`) already
+  existed from the initial schema, including the two hand-written DB-level constraints
+  (`prisma/migrations/20260917123800_db_level_constraints/migration.sql`) this release's
+  app-layer checks now sit in front of. No new migration required.
+
 ## [0.3.0] - 2026-09-17
 
 ### Added

@@ -4,14 +4,18 @@ import { auth } from '@/lib/auth/options';
 import { requireApplicationAccess, ForbiddenError, UnauthorizedError } from '@/lib/auth/rbac';
 import { getApplicationById } from '@/lib/services/applications';
 import { getErrorMessageWithContents } from '@/lib/services/errorCodes';
+import { listPendingPromotionsForErrorMessage } from '@/lib/services/promotions';
 import { LANGUAGES, getLanguageLabel } from '@/lib/constants/languages';
 import { EditErrorContentForm } from '@/components/EditErrorContentForm';
 import { AddLanguageForm } from '@/components/AddLanguageForm';
+import { SubmitPromotionForm } from '@/components/SubmitPromotionForm';
 
 // US-4.1/4.2/4.3 — Edit a code's metadata, add a language, and edit a language's content,
 // per-environment. NonProd rows are directly editable (EditErrorContentForm, saved
-// immediately, needsAuthoring cleared on save); Prod rows are read-only here — Epic 6's
-// promotion flow (not yet implemented) is the only path into Prod content.
+// immediately, needsAuthoring cleared on save) and can be submitted for promotion to Prod
+// (US-6.1, SubmitPromotionForm) unless a promotion is already pending for that row's
+// (language, Prod) pair. Prod rows are read-only here — Epic 6's promotion flow
+// (/applications/[applicationId]/promotions) is the only path into Prod content.
 export default async function ErrorCodeDetailPage({
   params,
 }: {
@@ -46,11 +50,18 @@ export default async function ErrorCodeDetailPage({
     notFound();
   }
 
+  const pendingPromotions = await listPendingPromotionsForErrorMessage(errorMessage.id);
+  const productionEnvironment = application.environments.find(
+    (environment) => environment.isProduction,
+  );
+
   return (
     <section>
       <h1>{errorMessage.code}</h1>
       <p>
         <Link href={`/applications/${applicationId}`}>Back to Application</Link>
+        {' · '}
+        <Link href={`/applications/${applicationId}/promotions`}>Promotions</Link>
       </p>
 
       {application.environments.map((environment) => {
@@ -76,50 +87,71 @@ export default async function ErrorCodeDetailPage({
                   : 'No content yet for this environment.'}
               </p>
             ) : (
-              contents.map((content) => (
-                <div key={content.id}>
-                  <h3>
-                    {getLanguageLabel(content.language)}{' '}
-                    {content.needsAuthoring ? <span>(Needs authoring)</span> : null}
-                  </h3>
+              contents.map((content) => {
+                const hasPendingPromotion =
+                  !environment.isProduction &&
+                  productionEnvironment != null &&
+                  pendingPromotions.some(
+                    (pending) =>
+                      pending.language === content.language &&
+                      pending.targetEnvironmentId === productionEnvironment.id,
+                  );
 
-                  {environment.isProduction ? (
-                    <div>
-                      <dl>
-                        <dt>Header</dt>
-                        <dd>{content.header}</dd>
-                        <dt>Description</dt>
-                        <dd>{content.description}</dd>
-                        <dt>Friendly message</dt>
-                        <dd>{content.friendlyMessage}</dd>
-                        <dt>Category</dt>
-                        <dd>{content.category}</dd>
-                        <dt>Error category</dt>
-                        <dd>{content.errorCategory}</dd>
-                        <dt>HTTP code</dt>
-                        <dd>{content.httpCode}</dd>
-                        <dt>Alert string</dt>
-                        <dd>{content.alertString}</dd>
-                        <dt>Redirect URL</dt>
-                        <dd>{content.redirectUrl ?? '—'}</dd>
-                        <dt>Event ID</dt>
-                        <dd>{content.eventId ?? '—'}</dd>
-                        <dt>Event category</dt>
-                        <dd>{content.eventCategory ?? '—'}</dd>
-                        <dt>Show transaction ID</dt>
-                        <dd>{content.transIdDisplay ? 'Yes' : 'No'}</dd>
-                        <dt>Offer retry</dt>
-                        <dd>{content.retryEnabled ? 'Yes' : 'No'}</dd>
-                        <dt>Show raw error code</dt>
-                        <dd>{content.errorCodeDisplay ? 'Yes' : 'No'}</dd>
-                      </dl>
-                      <p>Edit via promotion (not yet implemented).</p>
-                    </div>
-                  ) : (
-                    <EditErrorContentForm content={content} />
-                  )}
-                </div>
-              ))
+                return (
+                  <div key={content.id}>
+                    <h3>
+                      {getLanguageLabel(content.language)}{' '}
+                      {content.needsAuthoring ? <span>(Needs authoring)</span> : null}
+                    </h3>
+
+                    {environment.isProduction ? (
+                      <div>
+                        <dl>
+                          <dt>Header</dt>
+                          <dd>{content.header}</dd>
+                          <dt>Description</dt>
+                          <dd>{content.description}</dd>
+                          <dt>Friendly message</dt>
+                          <dd>{content.friendlyMessage}</dd>
+                          <dt>Category</dt>
+                          <dd>{content.category}</dd>
+                          <dt>Error category</dt>
+                          <dd>{content.errorCategory}</dd>
+                          <dt>HTTP code</dt>
+                          <dd>{content.httpCode}</dd>
+                          <dt>Alert string</dt>
+                          <dd>{content.alertString}</dd>
+                          <dt>Redirect URL</dt>
+                          <dd>{content.redirectUrl ?? '—'}</dd>
+                          <dt>Event ID</dt>
+                          <dd>{content.eventId ?? '—'}</dd>
+                          <dt>Event category</dt>
+                          <dd>{content.eventCategory ?? '—'}</dd>
+                          <dt>Show transaction ID</dt>
+                          <dd>{content.transIdDisplay ? 'Yes' : 'No'}</dd>
+                          <dt>Offer retry</dt>
+                          <dd>{content.retryEnabled ? 'Yes' : 'No'}</dd>
+                          <dt>Show raw error code</dt>
+                          <dd>{content.errorCodeDisplay ? 'Yes' : 'No'}</dd>
+                        </dl>
+                        <p>
+                          Read-only — content here only changes via an approved promotion
+                          request.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <EditErrorContentForm content={content} />
+                        {hasPendingPromotion ? (
+                          <p>Promotion pending.</p>
+                        ) : (
+                          <SubmitPromotionForm errorContentId={content.id} />
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })
             )}
 
             {environment.isProduction ? null : (
