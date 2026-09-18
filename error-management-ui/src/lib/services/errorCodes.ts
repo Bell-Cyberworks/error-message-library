@@ -72,6 +72,28 @@ const PLACEHOLDER_CONTENT_FIELDS = {
   needsAuthoring: true,
 } as const;
 
+// Real, user-facing fallback content for a code that's never been authored — this can be shown
+// directly to a live end user (via a Library or Error UI) before anyone gets to it in the admin
+// UI, unlike PLACEHOLDER_CONTENT_FIELDS's empty strings, which exist only because an admin is
+// about to fill the form in immediately after createErrorCode()/addLanguageContent(). Used by
+// findOrAutoRegisterErrorContent() below — the public lookup API's cache-miss path.
+const AUTO_REGISTRATION_DEFAULT_CONTENT = {
+  header: 'Something Went Wrong',
+  description: 'An unexpected error occurred and has not yet been documented for this application.',
+  friendlyMessage: 'An unexpected error occurred. Please try again or contact support.',
+  category: 'General',
+  errorCategory: 'Unclassified',
+  httpCode: 500,
+  alertString: 'page',
+  redirectUrl: null,
+  eventId: null,
+  eventCategory: null,
+  transIdDisplay: false,
+  retryEnabled: true,
+  errorCodeDisplay: true,
+  needsAuthoring: true,
+} as const;
+
 /** Shared NonProd-and-belongs-to-Application guard for createErrorCode()/addLanguageContent().
  *  Loads and returns the Environment so callers don't need a second query. */
 async function requireNonProductionEnvironmentInApplication({
@@ -376,4 +398,119 @@ export async function updateErrorContent({
       needsAuthoring: false,
     },
   });
+}
+
+/**
+ * Read-only lookup shared by findOrAutoRegisterErrorContent()'s cache-hit path and its
+ * post-P2002 recovery path (below) — the case-insensitive ErrorMessage match plus its
+ * (language, environmentId) ErrorContent row, if either exists.
+ */
+async function findErrorMessageAndContent({
+  applicationId,
+  environmentId,
+  code,
+  language,
+}: {
+  applicationId: string;
+  environmentId: string;
+  code: string;
+  language: string;
+}): Promise<{ errorMessage: ErrorMessage; content: ErrorContent | null } | null> {
+  // Case-insensitive on purpose — deliberately different from createErrorCode()'s
+  // case-insensitive pre-check, which throws on a match. Here we want to find the
+  // case-insensitive match and treat it as the same code, not reject it: this prevents a live
+  // app throwing "abc" from creating a permanent case-variant duplicate of an already-authored
+  // "ABC".
+  const errorMessage = await prisma.errorMessage.findFirst({
+    where: { applicationId, code: { equals: code, mode: 'insensitive' } },
+  });
+
+  if (!errorMessage) {
+    return null;
+  }
+
+  const content = await prisma.errorContent.findUnique({
+    where: {
+      errorMessageId_language_environmentId: {
+        errorMessageId: errorMessage.id,
+        language,
+        environmentId,
+      },
+    },
+  });
+
+  return { errorMessage, content };
+}
+
+/**
+ * The public lookup API's (src/app/api/v1/lookup/route.ts) cache-miss path. Finds the
+ * (ErrorMessage, ErrorContent) pair for (applicationId, code, language, environmentId), and
+ * auto-registers whichever half is missing — a never-before-seen code, or a code that exists
+ * but has never had content authored for this specific (language, environment) — with
+ * AUTO_REGISTRATION_DEFAULT_CONTENT, flagged needsAuthoring: true, so a live caller always gets
+ * a usable response instead of a hard failure.
+ *
+ * Note: unlike createErrorCode(), this intentionally does NOT call
+ * requireNonProductionEnvironmentInApplication() — it must be allowed to write into a Prod
+ * environment, since it's reacting to a real error in what might be a live production app. This
+ * is a deliberate divergence from createErrorCode()'s NonProd-only restriction, not an
+ * oversight.
+ */
+export async function findOrAutoRegisterErrorContent({
+  applicationId,
+  environmentId,
+  code,
+  language,
+}: {
+  applicationId: string;
+  environmentId: string;
+  code: string;
+  language: string;
+}): Promise<{ errorMessage: ErrorMessage; content: ErrorContent; autoRegistered: boolean }> {
+  const found = await findErrorMessageAndContent({ applicationId, environmentId, code, language });
+
+  if (found?.content) {
+    return { errorMessage: found.errorMessage, content: found.content, autoRegistered: false };
+  }
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const errorMessage =
+        found?.errorMessage ?? (await tx.errorMessage.create({ data: { applicationId, code } }));
+
+      const content = await tx.errorContent.create({
+        data: {
+          errorMessageId: errorMessage.id,
+          environmentId,
+          language,
+          ...AUTO_REGISTRATION_DEFAULT_CONTENT,
+        },
+      });
+
+      return { errorMessage, content, autoRegistered: true };
+    });
+  } catch (error) {
+    // A race: two concurrent first-hits for the same brand-new (or same not-yet-authored
+    // language/environment) code both attempted to create. Deliberately different from
+    // createErrorCode()'s P2002 handling (which correctly throws DuplicateErrorCodeError back
+    // to a human filling out an admin form) — this path is unauthenticated, high-volume, and
+    // idempotent from the caller's perspective, so racing to the same outcome is correct, not
+    // an error condition. Re-run the read-only lookup and return whichever row won the race.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const resolved = await findErrorMessageAndContent({
+        applicationId,
+        environmentId,
+        code,
+        language,
+      });
+
+      if (!resolved?.content) {
+        throw error;
+      }
+
+      return { errorMessage: resolved.errorMessage, content: resolved.content, autoRegistered: false };
+    }
+
+    throw error;
+  }
 }

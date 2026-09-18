@@ -74,3 +74,18 @@ export async function listNonProductionEnvironmentsForApplication(
     orderBy: { name: 'asc' },
   });
 }
+
+/** Exact-match lookup by (applicationId, name) — matches the DB's @@unique([applicationId,
+ *  name]). Scoped to applicationId so an Environment name belonging to a different Application
+ *  can never match. Used by the public lookup API (src/app/api/v1/lookup/route.ts). */
+export async function getEnvironmentByName({
+  applicationId,
+  name,
+}: {
+  applicationId: string;
+  name: string;
+}): Promise<Environment | null> {
+  return prisma.environment.findUnique({
+    where: { applicationId_name: { applicationId, name } },
+  });
+}
