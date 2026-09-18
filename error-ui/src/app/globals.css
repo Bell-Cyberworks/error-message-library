@@ -1,0 +1,75 @@
+/* Minimal reset — no UI library / Tailwind, matching error-management-ui's approach. This
+   is the one page real end users see, so the card/centering styles below are deliberately
+   more finished than a typical scaffold. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  color: #1a1a1a;
+  background-color: #f5f5f7;
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+}
+
+.error-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.error-card {
+  width: 100%;
+  max-width: 32rem;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.06);
+  padding: 2.5rem;
+  text-align: center;
+}
+
+.error-card__header {
+  margin: 0 0 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.error-card__code {
+  display: inline-block;
+  margin: 0 0 1.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background-color: #f0f0f3;
+  color: #555555;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+.error-card__message {
+  margin: 0;
+  color: #3a3a3a;
+  font-size: 1rem;
+}
