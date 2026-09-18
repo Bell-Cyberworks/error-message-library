@@ -21,13 +21,34 @@ When `REDIRECT_URL` is set on the error, Error UI honors it (e.g. offering or pe
 
 ```
 error-ui/
-├── src/         # Component source (framework TBD)
-├── Dockerfile   # Container image for this service
-└── tests/
+├── src/
+│   └── app/
+│       ├── layout.tsx    # Root layout, page metadata
+│       ├── globals.css   # Centered-card styling for the error display
+│       └── page.tsx      # Server Component: reads query params, calls the lookup API, renders
+├── public/
+├── Dockerfile            # Multi-stage container image (Next.js standalone output)
+├── next.config.ts
+├── eslint.config.mjs
+├── tsconfig.json
+└── package.json
 ```
 
 Runs as one of the services in the root [docker-compose.yml](../docker-compose.yml).
 
 ## Status
 
-Structure only — no implementation yet. Framework choice is still open.
+**Implemented:** direct-lookup, full-page display only. The page reads `appname`, `code`,
+`environment`, and `language` from the URL's query params, calls Error Management UI's public
+`GET /api/v1/lookup` API server-side (passing `language` via the `Accept-Language` header, per
+[the schema doc](../docs/error-code-schema.md)), and renders a centered card with the `header`,
+`code`, and `friendlyMessage` fields. Any missing param, network failure, or non-2xx response
+renders a generic fallback card instead of crashing.
+
+**Not yet implemented** — these remain the documented eventual design (see "Integration modes"
+and "Display modes" above), just not built in this pass:
+- Pre-resolved payload integration mode (host app hands Error UI the JSON directly, skipping
+  the API call).
+- Inline/toast display mode selected by `alertString` — this pass only renders the full error
+  page.
+- `REDIRECT_URL` handling.
