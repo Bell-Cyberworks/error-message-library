@@ -22,14 +22,21 @@ When `REDIRECT_URL` is set on the error, Error UI honors it (e.g. offering or pe
 ```
 error-ui/
 ├── src/
-│   └── app/
-│       ├── layout.tsx    # Root layout, page metadata
-│       ├── globals.css   # Centered-card styling for the error display
-│       └── page.tsx      # Server Component: reads query params, calls the lookup API, renders
+│   ├── app/
+│   │   ├── layout.tsx    # Root layout, page metadata
+│   │   ├── globals.css   # Centered-card styling for the error display
+│   │   └── page.tsx      # Server Component: thin wrapper around src/lib/lookup.ts
+│   └── lib/
+│       └── lookup.ts     # Pure logic: param normalization + the management-API lookup call
+├── tests/
+│   ├── lookup.test.ts             # Unit tests for src/lib/lookup.ts (mocked fetch)
+│   ├── lookup.integration.test.ts # Gated integration test against a live error-management-ui
+│   └── README.md
 ├── public/
 ├── Dockerfile            # Multi-stage container image (Next.js standalone output)
 ├── next.config.ts
 ├── eslint.config.mjs
+├── vitest.config.mts
 ├── tsconfig.json
 └── package.json
 ```
@@ -44,6 +51,29 @@ Runs as one of the services in the root [docker-compose.yml](../docker-compose.y
 [the schema doc](../docs/error-code-schema.md)), and renders a centered card with the `header`,
 `code`, and `friendlyMessage` fields. Any missing param, network failure, or non-2xx response
 renders a generic fallback card instead of crashing.
+
+**Test suite (new):** the param-normalization and lookup logic that used to live inline in
+`src/app/page.tsx` has been extracted into `src/lib/lookup.ts` (`normalizeParams`, `firstValue`,
+`lookupErrorDetails`, the `LookupResponse`/`ErrorPageParams`/`RawSearchParams` types, and the
+`FALLBACK_HEADER`/`FALLBACK_MESSAGE` constants) specifically so it can be unit-tested directly,
+without rendering anything. `page.tsx` is now a thin wrapper around that module — same
+behavior, same JSX, no logic changes.
+
+- `npm test` runs the unit test suite (Vitest `5.0.1`, matching `error-management-ui`'s test
+  suite for consistency) — no environment variables or running services required, only
+  `npm install` first. `npm run test:watch` runs it in watch mode.
+- A second, opt-in integration test (`tests/lookup.integration.test.ts`) exercises
+  `lookupErrorDetails` against a real, running `error-management-ui` instance. It's skipped by
+  default and only runs when explicitly invoked with `EML_INTEGRATION_TEST=1` plus a real
+  `MANAGEMENT_API_URL` and `EML_TEST_APPNAME`/`EML_TEST_CODE`/`EML_TEST_ENVIRONMENT`/
+  `EML_TEST_LANGUAGE` (defaults to `en`) pointing at data that actually exists in that
+  instance. See `tests/README.md` for the exact invocation.
+- **Explicitly out of scope:** full page-rendering/component tests. `page.tsx` is an async
+  Server Component; no browser automation tool (e.g. Playwright) is available in this
+  environment, and React Testing Library's async-Server-Component support isn't solid enough
+  to rely on. Coverage here is pure-logic only, via the `src/lib/lookup.ts` extraction — see
+  `tests/README.md` for the full rationale, the same scope-boundary approach
+  `error-management-ui`'s test suite takes with Server Actions.
 
 **Not yet implemented** — these remain the documented eventual design (see "Integration modes"
 and "Display modes" above), just not built in this pass:
