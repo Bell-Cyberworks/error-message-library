@@ -5,6 +5,60 @@ All notable changes to `error-management-ui` are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version
 numbers follow [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-09-18
+
+### Added
+
+- First automated test suite for this project (`tests/`, Vitest `5.0.1` +
+  `@vitest/coverage-v8` `5.0.1`). Every prior PR up to and including 0.4.0 was verified with
+  manual throwaway scripts run against a real Postgres instance — this formalizes exactly
+  those same scenarios into a repeatable, committed suite, still run against a real Postgres
+  test database (no mocked Prisma client). New `npm test` / `npm run test:watch` / `npm run
+  test:coverage` scripts; `DATABASE_URL` is read from the environment at invocation time, the
+  same way `src/lib/db/prisma.ts` and `prisma.config.ts` already read it — no new `.env.test`
+  config layer.
+  - `tests/services/applications.test.ts`, `environments.test.ts`, `errorCodes.test.ts`,
+    `promotions.test.ts`, `users.test.ts` — every exported function and typed error class in
+    the corresponding `src/lib/services/*.ts` module, including
+    `findOrAutoRegisterErrorContent()`'s `P2002` concurrency/race-recovery path (two
+    concurrent `Promise.all` calls for the same brand-new code, asserted to resolve to the
+    same row with exactly one `ErrorMessage` row created).
+  - `tests/lib/rbac.test.ts` — `requireRole()`/`requireApplicationAccess()` and their
+    `UnauthorizedError`/`ForbiddenError` outcomes, including the Admin-bypass and
+    unassigned-Application-Admin-is-forbidden cases.
+  - `tests/api/lookup.test.ts` — `GET /api/v1/lookup` invoked directly with a real
+    `NextRequest`, covering the authored-content path, auto-registration, idempotency across
+    repeated lookups, and the 404 (unknown application/environment) and 400 (missing params)
+    error paths.
+  - Test isolation without per-test transactional rollback: every test uses a collision-safe
+    unique name/email (`tests/testDb.ts`'s `uniqueSuffix()`) and each file cleans up what it
+    created in `afterAll`, relying on `prisma/schema.prisma`'s `onDelete: Cascade` relations
+    to clean up child rows for free where applicable.
+  - **Explicitly out of scope**: Server Actions (`src/actions/*.ts`) — thin wrappers around
+    the service functions, RBAC guards, and zod validation already covered above, glued to
+    `next-auth`'s `auth()` and Next's `revalidatePath`. See `tests/README.md` for the full
+    rationale.
+  - `README.md`'s Status section documents the new suite, the required `DATABASE_URL`, and
+    this scope boundary.
+
+### Fixed
+
+- `PromotionRequest.sourceEnvironmentId`/`targetEnvironmentId` now cascade-delete
+  (`onDelete: Cascade`), matching `errorMessageId`'s existing cascade — found by the new test
+  suite's own cleanup step, not by inspection. Without this, deleting an Application could hit
+  a real Postgres foreign key violation: Application deletion cascades to delete its
+  Environment rows and its ErrorMessage rows independently, and Postgres doesn't guarantee the
+  ErrorMessage->PromotionRequest cascade completes before the Environment cascade's FK check
+  runs, so an Environment delete could be blocked by a PromotionRequest row that was about to
+  be removed anyway via a different path. This was a real, reachable bug (any future
+  "delete Application" feature would hit it), not a test-only inconvenience — new migration
+  `20260918194447_promotion_request_environment_cascade`.
+
+### Notes
+
+- Everything else in this release is test infrastructure only — the schema fix above is the
+  one behavior change, surfaced directly by writing the test suite.
+
 ## [0.4.0] - 2026-09-18
 
 ### Added

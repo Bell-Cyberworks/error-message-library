@@ -235,11 +235,18 @@ model PromotionRequest {
   errorMessage   ErrorMessage @relation(fields: [errorMessageId], references: [id], onDelete: Cascade)
   language       String
 
+  // onDelete: Cascade here (not the Prisma default) matches errorMessageId's cascade above —
+  // without it, deleting an Application cascades to delete its Environment rows independently
+  // of the ErrorMessage->PromotionRequest cascade, and Postgres doesn't guarantee the latter
+  // completes before the former's FK check runs, so an Environment delete can be blocked by a
+  // PromotionRequest row that's about to be cascade-deleted anyway via a different path. Found
+  // by the automated test suite's cleanup step, not by inspection — this was a real, reachable
+  // bug, not just a test-only inconvenience (surfaces any time an Application is deleted).
   sourceEnvironmentId String
-  sourceEnvironment   Environment @relation("PromotionSource", fields: [sourceEnvironmentId], references: [id])
+  sourceEnvironment   Environment @relation("PromotionSource", fields: [sourceEnvironmentId], references: [id], onDelete: Cascade)
 
   targetEnvironmentId String
-  targetEnvironment   Environment @relation("PromotionTarget", fields: [targetEnvironmentId], references: [id])
+  targetEnvironment   Environment @relation("PromotionTarget", fields: [targetEnvironmentId], references: [id], onDelete: Cascade)
 
   // Write-once audit snapshot of the submitted content — must survive later edits to the
   // live source ErrorContent row, so it's stored as JSON rather than a relation.

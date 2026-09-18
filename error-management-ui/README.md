@@ -57,3 +57,17 @@ Runs as one of the services in the root [docker-compose.yml](../docker-compose.y
 Session gating for the `(admin)` group happens in `src/app/(admin)/layout.tsx` (a Server Component `auth()` check), not edge middleware — database-backed sessions need a Postgres round-trip, which the pg driver and argon2's native binding can't do on the Edge runtime. Server Actions and route handlers still must call `requireRole()`/`requireApplicationAccess()` themselves; the layout guard only covers page navigation.
 
 See [Management UI Architecture](../docs/management-ui-architecture.md) for the design this scaffold follows, and [Management UI v1 Backlog](../docs/management-ui-backlog.md) for what's still to build.
+
+### Automated tests
+
+An automated test suite now exists under `tests/` (Vitest), running against a real Postgres test database rather than mocks — the same scenarios every prior PR up to this point verified with manual throwaway scripts. Covered: every `src/lib/services/*.ts` module (`applications`, `environments`, `errorCodes` — including the public lookup API's auto-registration concurrency/race path — `promotions`, `users`), `src/lib/auth/rbac.ts`'s `requireRole()`/`requireApplicationAccess()` guards, and `src/app/api/v1/lookup/route.ts` invoked directly. **Server Actions** (`src/actions/*.ts`) are explicitly out of scope — see `tests/README.md` for why.
+
+```bash
+# One-time: apply migrations to a dedicated test database (never point this at dev data).
+DATABASE_URL=postgresql://<user>:<pass>@<host>:5432/<test-db> npx prisma migrate deploy
+
+# Run the suite.
+DATABASE_URL=postgresql://<user>:<pass>@<host>:5432/<test-db> npm test
+```
+
+See `tests/README.md` for the full test-database requirements, the `test:watch`/`test:coverage` variants, and the test-isolation convention (collision-safe unique names + per-file cleanup, no transactional rollback).
