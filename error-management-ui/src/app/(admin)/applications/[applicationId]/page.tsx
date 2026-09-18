@@ -67,6 +67,10 @@ export default async function ApplicationDashboardPage({
         <Link href={`/applications/${applicationId}/promotions`}>Promotions</Link>
       </p>
 
+      <p>
+        <Link href={`/applications/${applicationId}/api-keys`}>API Keys</Link>
+      </p>
+
       {/* Epic 3 dashboard — this section replaces the page's original "TODO: US-2.1/2.3"
           comment, whose ticket reference was wrong when first scaffolded (that data didn't
           exist until Epic 3/4's ErrorMessage/ErrorContent model, via

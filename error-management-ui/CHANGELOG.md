@@ -5,6 +5,60 @@ All notable changes to `error-management-ui` are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version
 numbers follow [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-09-18
+
+### Added
+
+- API key authentication for the public lookup endpoint (`GET /api/v1/lookup`), closing a gap
+  documented since this app was first scaffolded — the endpoint previously had zero
+  authentication.
+  - Two new models: `ApplicationApiKey` (per-Application, grants read/auto-registration access
+    to that Application's codes only) and `SystemApiKey` (cross-Application, for trusted
+    internal callers like Error UI that resolve whichever Application a caller sends them,
+    rather than holding one Application's key ahead of time). Both store only an argon2 hash
+    (`@node-rs/argon2`, same library used for password hashing) plus a short, non-secret lookup
+    prefix — the raw key itself is generated in `src/lib/apiKeys/generateApiKey.ts` and is only
+    ever returned once, at creation time. Revocation is soft-delete (`revokedAt`), consistent
+    with how this project already treats audit-trail-like data (promotion history is never
+    deleted either).
+  - New service module `src/lib/services/apiKeys.ts` (`createApplicationApiKey`,
+    `listApplicationApiKeys`, `revokeApplicationApiKey`, `createSystemApiKey`,
+    `listSystemApiKeys`, `revokeSystemApiKey`, and `verifyApiKeyForApplication` — the actual
+    authorization check the lookup route calls) and Server Actions
+    (`src/actions/apiKeys.ts`).
+  - New pages: `/applications/[applicationId]/api-keys` (any assigned Application Admin or an
+    Admin can create/revoke that Application's keys) and `/system-api-keys` (Admin only).
+    Newly-created keys are shown exactly once, with an explicit "copy this now" warning — they
+    are never recoverable afterward. Linked from the Application dashboard and the Admin nav
+    respectively.
+  - `ActionResult` (`src/lib/actions/result.ts`) is now generic over an optional success-only
+    extra-fields bag (defaulting to none, so every pre-existing action's typing is unchanged)
+    so `createApplicationApiKeyAction`/`createSystemApiKeyAction` can carry the one-time raw
+    key back to their forms without a parallel, one-off result type.
+
+### Changed
+
+- **Breaking**: `GET /api/v1/lookup` now requires an `Authorization: Bearer <key>` header (a
+  per-Application key or a system key). A missing, invalid, or wrong-scope key returns `401`,
+  with no distinction in the response between those cases (a deliberate choice — see the code
+  comment in `src/app/api/v1/lookup/route.ts`). Acceptable as a breaking change per this
+  project's pre-1.0 versioning; every existing caller of the public lookup API (the four client
+  libraries, Error UI) needs a key issued and configured (`EML_API_KEY`) before upgrading.
+  Application/Environment name resolution and their existing `404` responses are unchanged and
+  remain unauthenticated — only error content and auto-registration are gated.
+- `/applications/[applicationId]` (the Application dashboard) now links to the new API Keys
+  page, alongside the existing Environments/Admins/Promotions links. The Admin nav
+  (`src/app/(admin)/layout.tsx`) now links to `/system-api-keys`, next to the existing
+  Admin-only `Users` link.
+
+### Notes
+
+- `docs/error-code-schema.md` and `libraries/README.md` updated to describe the new
+  `Authorization` header contract; the four client libraries' own adoption of `EML_API_KEY` is
+  tracked as separate follow-up work, not part of this release.
+- New Prisma models (`ApplicationApiKey`, `SystemApiKey`) require a migration — generated and
+  applied separately from this change.
+
 ## [0.5.0] - 2026-09-18
 
 ### Added
