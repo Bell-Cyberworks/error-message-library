@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bellcyberworks-eml-client"
+version = "0.1.0"
+description = "Python client for the Error Message Library (EML) — resolves error codes against the Error Management UI's public lookup API."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    { name = "Bell Cyberworks" },
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/eml_client"]
