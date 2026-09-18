@@ -159,6 +159,14 @@ export async function getApplicationById(
   });
 }
 
+/** Exact-match (case-sensitive) lookup by Application.name — matches the DB's unique index on
+ *  Application.name, which is case-sensitive. Used by the public lookup API
+ *  (src/app/api/v1/lookup/route.ts), which requires the caller to send the exact registered
+ *  name. */
+export async function getApplicationByName(name: string): Promise<Application | null> {
+  return prisma.application.findUnique({ where: { name } });
+}
+
 /**
  * US-2.3 — Assigns an existing APPLICATION_ADMIN-role user to an Application.
  */

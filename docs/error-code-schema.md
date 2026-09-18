@@ -20,6 +20,8 @@ If `(APPNAME, CODE)` doesn't exist yet when the API is queried:
 2. It's flagged in the Error Management UI as **needs authoring** for that app's owner.
 3. The default placeholder response is returned immediately — the caller never gets a hard failure just because a code is new.
 
+This only applies once `APPNAME` and `ENVIRONMENT` already resolve to a registered Application/Environment — an unrecognized `APPNAME` or `ENVIRONMENT` is a caller-configuration error (a distinct, real failure), not something auto-registration silently papers over.
+
 Once an owner edits the code in the Management UI, subsequent lookups return the authored text instead of the placeholder.
 
 ## Fields

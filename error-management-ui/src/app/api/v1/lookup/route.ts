@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db/prisma';
+import { getApplicationByName } from '@/lib/services/applications';
+import { getEnvironmentByName } from '@/lib/services/environments';
+import { findOrAutoRegisterErrorContent } from '@/lib/services/errorCodes';
 
 // Public lookup endpoint — see docs/error-code-schema.md ("Response shape (sketch)") for
 // the field-name contract this must match exactly, since Libraries (multi-language) and
@@ -24,41 +26,39 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const errorMessage = await prisma.errorMessage.findFirst({
-    where: {
-      code,
-      application: { name: appname },
-    },
-    include: {
-      contents: {
-        where: {
-          language,
-          environment: { name: environmentName },
-        },
-        include: { environment: true },
-        take: 1,
-      },
-    },
-  });
-
-  const content = errorMessage?.contents[0];
-
-  if (!errorMessage || !content) {
-    // TODO: auto-registration on cache miss — see error-code-schema.md ("Auto-registration").
-    // A missing (APPNAME, CODE) pair should be created automatically with placeholder text,
-    // flagged needsAuthoring, and this endpoint should return that placeholder immediately
-    // instead of a hard failure. Not implemented yet — 501 until that follow-up lands.
+  const application = await getApplicationByName(appname);
+  if (!application) {
     return NextResponse.json(
-      { error: 'Not found, and auto-registration on cache miss is not implemented yet.' },
-      { status: 501 },
+      { error: `No application named "${appname}" is registered.` },
+      { status: 404 },
     );
   }
 
+  const environment = await getEnvironmentByName({
+    applicationId: application.id,
+    name: environmentName,
+  });
+  if (!environment) {
+    return NextResponse.json(
+      {
+        error: `No environment named "${environmentName}" is registered for application "${appname}".`,
+      },
+      { status: 404 },
+    );
+  }
+
+  const { errorMessage, content } = await findOrAutoRegisterErrorContent({
+    applicationId: application.id,
+    environmentId: environment.id,
+    code,
+    language,
+  });
+
   return NextResponse.json({
-    appname,
+    appname: application.name,
     code: errorMessage.code,
     language: content.language,
-    environment: content.environment.name,
+    environment: environment.name,
     header: content.header,
     description: content.description,
     friendlyMessage: content.friendlyMessage,
