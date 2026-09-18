@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.bellcyberworks.eml</groupId>
+  <artifactId>eml-java-client</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <name>EML Java Client</name>
+  <description>
+    Java client library for the Error Message Library (EML). Resolves a thrown error code
+    against the Error Management UI's public lookup API and always yields a usable
+    RuntimeException, falling back to a local message if EML itself is unreachable. Zero
+    runtime dependencies beyond the JDK (java.net.http.HttpClient and a hand-written JSON
+    decoder only).
+  </description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
+    <junit.version>5.10.2</junit.version>
+  </properties>
+
+  <dependencies>
+    <!--
+      Test-scope only. The library itself (src/main) has zero compile-scope dependencies —
+      only java.net.http.HttpClient and a hand-written JSON reader, both JDK-provided.
+      This dependency is inert in environments without Maven; see
+      src/test/java/.../ManualSmokeTest.java for the JUnit-free verification path used
+      until a build tool is available. It becomes usable once `mvn test` is available.
+    -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>${project.artifactId}-${project.version}</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+        <configuration>
+          <!--
+            ManualSmokeTest is a plain class with a public static void main(String[] args),
+            not a JUnit test (there is no build tool available in the environment this
+            library was originally built in, only plain javac/java) — see its Javadoc.
+            Excluded here so `mvn test` doesn't try to execute it as a JUnit test class.
+          -->
+          <excludes>
+            <exclude>**/ManualSmokeTest.java</exclude>
+          </excludes>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
