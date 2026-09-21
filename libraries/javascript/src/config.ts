@@ -18,6 +18,10 @@ export function environment(): string | undefined {
   return process.env.ENVIRONMENT;
 }
 
+export function apiKey(): string | undefined {
+  return process.env.EML_API_KEY;
+}
+
 /**
  * No `LANGUAGE` environment variable exists. This mirrors the server's own default in
  * `resolveLanguage()` (error-management-ui/src/app/api/v1/lookup/route.ts) for a

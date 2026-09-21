@@ -26,7 +26,7 @@ Python allowing blocking I/O inside `__init__`, where JavaScript does not.
 ## Usage
 
 ```python
-# Configure via environment variables: APPNAME, EML_API, ENVIRONMENT
+# Configure via environment variables: APPNAME, EML_API, ENVIRONMENT, EML_API_KEY
 raise EMLError("FIL1010")
 
 # Or with an explicit language override (defaults to "en" otherwise, matching the server's own
@@ -74,7 +74,7 @@ python/
 │   └── eml_client/
 │       ├── __init__.py       — public entry point; exports `EMLError` only
 │       ├── error.py          — the `EMLError` class
-│       ├── config.py         — lazy env var reads (APPNAME, EML_API, ENVIRONMENT)
+│       ├── config.py         — lazy env var reads (APPNAME, EML_API, ENVIRONMENT, EML_API_KEY)
 │       ├── lookup_client.py  — the `urllib.request` call + response validation
 │       └── lookup_result.py  — internal dataclass for the lookup response (+ `resolved`), and
 │                                the local-fallback builder
@@ -97,14 +97,24 @@ library's `json` module for parsing — both requiring nothing beyond a Python 3
 No hand-written JSON parser is needed here the way Java's library needed one — `json` is
 stdlib, same as JS's built-in `JSON.parse`.
 
+The public lookup endpoint now requires authentication: every request sends an `Authorization:
+Bearer <key>` header, with `<key>` read from the `EML_API_KEY` environment variable. A missing
+`EML_API_KEY` fails the same pre-flight blank check as `APPNAME`/`EML_API`/`ENVIRONMENT` — no
+network call is attempted. An invalid or revoked key is indistinguishable, from this library's
+point of view, from any other non-2xx response: `urlopen` raises it as `urllib.error.HTTPError`
+(a `401` in this case) exactly like any other non-2xx status.
+
 Resilience is the core design point: `EMLError`'s constructor never lets a lookup failure
-escape as some other exception type. Any expected failure — invalid/missing configuration, a
-network error, a non-2xx HTTP status (raised by `urlopen` itself as `urllib.error.HTTPError`,
-unlike Java/JS where the request completes and the status is checked afterward), or a response
-body missing the fields this library needs (`header` and `friendlyMessage` are required; every
-other field falls back to a safe per-field default so future server-side field additions don't
-break older client versions) — is caught internally, logged as a warning, and replaced with a
-local fallback message (`resolved == False`).
+escape as some other exception type. Any expected failure — invalid/missing configuration
+(including a missing `EML_API_KEY`), a network error, a non-2xx HTTP status (raised by `urlopen`
+itself as `urllib.error.HTTPError`, unlike Java/JS where the request completes and the status is
+checked afterward — this is how a `401` from a missing/invalid API key is caught too), or a
+response body missing the fields this library needs (`header` and `friendlyMessage` are
+required; every other field falls back to a safe per-field default so future server-side field
+additions don't break older client versions) — is caught internally, logged as a warning, and
+replaced with a local fallback message (`resolved == False`). No new logic was needed to cover
+authentication failures: the existing catch-all around every `lookup()` failure mode already
+handles a `401` the same as any other non-2xx status.
 
 `EMLError.__init__` catches `Exception`, not `BaseException`. Java deliberately catches only
 `RuntimeException | EMLLookupFailedException`, explicitly leaving real JVM `Error`s (e.g.
@@ -128,7 +138,7 @@ run directly against a real, running `error-management-ui` instance, not a mocke
 suite, so `pytest` (or any other test runner) isn't a needed dependency.
 
 ```
-APPNAME=my-app EML_API=http://localhost:3000 ENVIRONMENT=dev \
+APPNAME=my-app EML_API=http://localhost:3000 ENVIRONMENT=dev EML_API_KEY=your-api-key \
   python3 test/manual_smoke_test.py SOME_CODE
 ```
 

@@ -1,7 +1,8 @@
 """Calls the Error Management UI's public lookup endpoint —
 ``GET /api/v1/lookup?application=&code=&environment=`` with an ``Accept-Language`` header for
-language (see ``error-management-ui/src/app/api/v1/lookup/route.ts``) — and translates a
-successful response into a :class:`LookupResult`.
+language and an ``Authorization: Bearer <key>`` header for the required API key (see
+``error-management-ui/src/app/api/v1/lookup/route.ts``) — and translates a successful response
+into a :class:`LookupResult`.
 
 Every failure mode (bad configuration, network failure, non-2xx HTTP status, unparseable or
 unusable response body) is signaled by raising :class:`LookupFailedError`; this module never
@@ -34,16 +35,24 @@ def lookup(
     environment: str | None,
     code: str,
     language: str,
+    api_key: str | None,
 ) -> LookupResult:
-    if _is_blank(appname) or _is_blank(api_base_url) or _is_blank(environment):
+    if (
+        _is_blank(appname)
+        or _is_blank(api_base_url)
+        or _is_blank(environment)
+        or _is_blank(api_key)
+    ):
         raise LookupFailedError(
-            "Missing required configuration: APPNAME, EML_API, and ENVIRONMENT must all be set"
+            "Missing required configuration: APPNAME, EML_API, ENVIRONMENT, and EML_API_KEY "
+            "must all be set"
         )
 
     # _is_blank already confirmed these are non-None, non-blank strings.
     assert appname is not None
     assert api_base_url is not None
     assert environment is not None
+    assert api_key is not None
 
     base_url = api_base_url[:-1] if api_base_url.endswith("/") else api_base_url
     query = urllib.parse.urlencode(
@@ -51,7 +60,9 @@ def lookup(
     )
     url = f"{base_url}/api/v1/lookup?{query}"
 
-    request = urllib.request.Request(url, headers={"Accept-Language": language})
+    request = urllib.request.Request(
+        url, headers={"Accept-Language": language, "Authorization": f"Bearer {api_key}"}
+    )
 
     # urlopen's `timeout` covers the whole connect+read cycle in one value — Python has no
     # separate connect-timeout/request-timeout pair the way Java's HttpClient does. This is the

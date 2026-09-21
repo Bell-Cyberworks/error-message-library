@@ -66,6 +66,12 @@ export async function lookupErrorDetails(
     return null;
   }
 
+  const systemApiKey = process.env.EML_SYSTEM_API_KEY;
+  if (!systemApiKey) {
+    console.error('EML_SYSTEM_API_KEY is not set; cannot look up error details.');
+    return null;
+  }
+
   const lookupUrl = new URL('/api/v1/lookup', managementApiUrl);
   lookupUrl.searchParams.set('application', appname);
   lookupUrl.searchParams.set('code', code);
@@ -73,7 +79,7 @@ export async function lookupErrorDetails(
 
   try {
     const response = await fetch(lookupUrl, {
-      headers: { 'Accept-Language': language },
+      headers: { 'Accept-Language': language, 'Authorization': `Bearer ${systemApiKey}` },
       cache: 'no-store',
     });
 

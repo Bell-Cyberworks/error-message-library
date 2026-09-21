@@ -5,6 +5,25 @@ All notable changes to `error-ui` are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version
 numbers follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-09-18
+
+### Changed
+
+- **Breaking:** `lookupErrorDetails` (`src/lib/lookup.ts`) now sends an
+  `Authorization: Bearer <key>` header on every call to `error-management-ui`'s
+  `GET /api/v1/lookup`, matching that endpoint's new API key requirement (see
+  `error-management-ui`'s `0.6.0` changelog entry). The key is read from a new required
+  environment variable, `EML_SYSTEM_API_KEY`, which must be a **system-level** key (created from
+  `error-management-ui`'s `/system-api-keys` admin page, Admin-only) rather than a
+  per-Application key, since Error UI resolves whichever Application a caller sends it via the
+  `appname` query param and can't hold one Application's key ahead of time. If
+  `EML_SYSTEM_API_KEY` is unset, `lookupErrorDetails` logs an error and returns `null` (same
+  short-circuit shape as the existing missing-`MANAGEMENT_API_URL` check) without attempting a
+  request. Deployments upgrading to this version must provision a system API key and set
+  `EML_SYSTEM_API_KEY` before error lookups will succeed — see `README.md` and
+  root `docker-compose.yml`'s `error-ui` service block, which now requires it via the same
+  `${VAR:?message}` pattern used for `error-management-ui`'s `AUTH_SECRET`.
+
 ## [0.2.0] - 2026-09-18
 
 ### Added

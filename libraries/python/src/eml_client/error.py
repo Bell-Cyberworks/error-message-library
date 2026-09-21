@@ -1,8 +1,8 @@
 """The library's entire public surface.
 
 ``EMLError(code)`` resolves ``code`` against the Error Management UI's public lookup API —
-configured via the ``APPNAME``, ``EML_API``, and ``ENVIRONMENT`` environment variables — and
-always produces a usable exception. If EML itself can't be reached, or returns something this
+configured via the ``APPNAME``, ``EML_API``, ``ENVIRONMENT``, and ``EML_API_KEY`` environment
+variables — and always produces a usable exception. If EML itself can't be reached, or returns something this
 library can't use, a local fallback message is used instead; nothing but a
 successfully-constructed ``EMLError`` ever escapes ``__init__``. That resilience is the entire
 point of this library: its own error handling must never itself crash the calling application.
@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 
-from .config import api_base_url, app_name, default_language, environment
+from .config import api_base_url, api_key, app_name, default_language, environment
 from .lookup_client import lookup
 from .lookup_result import LookupResult
 
@@ -67,7 +67,7 @@ class EMLError(Exception):
 
 def _resolve(code: str, language: str) -> LookupResult:
     try:
-        return lookup(app_name(), api_base_url(), environment(), code, language)
+        return lookup(app_name(), api_base_url(), environment(), code, language, api_key())
     except Exception as e:  # noqa: BLE001 — deliberately broad, see below.
         # Java only catches RuntimeException | EMLLookupFailedException, deliberately leaving
         # real JVM Errors (e.g. OutOfMemoryError) to propagate uncaught. JavaScript makes the

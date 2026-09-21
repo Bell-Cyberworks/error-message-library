@@ -6,8 +6,9 @@ import java.util.logging.Logger;
  * The library's entire public surface.
  *
  * <p>Throwing {@code new EMLError(code)} resolves {@code code} against the Error Management
- * UI's public lookup API — configured via the {@code APPNAME}, {@code EML_API}, and
- * {@code ENVIRONMENT} environment variables — and always produces a usable exception. If EML
+ * UI's public lookup API — configured via the {@code APPNAME}, {@code EML_API},
+ * {@code ENVIRONMENT}, and {@code EML_API_KEY} environment variables — and always produces a
+ * usable exception. If EML
  * itself can't be reached, or returns something this library can't use, a local fallback
  * message is used instead; nothing but a successfully-constructed {@code EMLError} ever
  * escapes either public constructor. That resilience is the entire point of this library: its
@@ -73,7 +74,8 @@ public final class EMLError extends RuntimeException {
     private static LookupResult resolve(String code, String language) {
         try {
             return EMLLookupClient.lookup(
-                    EMLConfig.appName(), EMLConfig.apiBaseUrl(), EMLConfig.environment(), code, language);
+                    EMLConfig.appName(), EMLConfig.apiBaseUrl(), EMLConfig.environment(), EMLConfig.apiKey(),
+                    code, language);
         } catch (RuntimeException | EMLLookupFailedException e) {
             // A real Error (e.g. OutOfMemoryError) is deliberately NOT caught here and is
             // left to propagate — only expected, recoverable failure modes fall back.

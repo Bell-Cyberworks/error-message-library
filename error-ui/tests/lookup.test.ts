@@ -17,11 +17,12 @@ import {
 } from '@/lib/lookup';
 
 // Pure-logic unit tests for src/lib/lookup.ts. `fetch` is mocked via vi.stubGlobal (Vitest's
-// built-in global mocking — no separate mocking library needed), and MANAGEMENT_API_URL is
-// set/unset directly on process.env in beforeEach/afterEach, restoring the original value each
-// time so no test leaks env state into another. See tests/README.md for the scope boundary
-// (no page-rendering tests here — see FALLBACK_HEADER/FALLBACK_MESSAGE below, asserted against
-// directly rather than re-hardcoded, since page.tsx imports these same constants).
+// built-in global mocking — no separate mocking library needed), and MANAGEMENT_API_URL /
+// EML_SYSTEM_API_KEY are set/unset directly on process.env in beforeEach/afterEach, restoring
+// the original values each time so no test leaks env state into another. See tests/README.md
+// for the scope boundary (no page-rendering tests here — see FALLBACK_HEADER/FALLBACK_MESSAGE
+// below, asserted against directly rather than re-hardcoded, since page.tsx imports these same
+// constants).
 describe('normalizeParams / firstValue', () => {
   it('picks the first element when the value is an array', () => {
     expect(firstValue(['first', 'second'])).toBe('first');
@@ -54,6 +55,7 @@ describe('normalizeParams / firstValue', () => {
 
 describe('lookupErrorDetails', () => {
   const originalManagementApiUrl = process.env.MANAGEMENT_API_URL;
+  const originalSystemApiKey = process.env.EML_SYSTEM_API_KEY;
   let consoleErrorSpy: MockInstance;
 
   beforeEach(() => {
@@ -68,6 +70,11 @@ describe('lookupErrorDetails', () => {
       delete process.env.MANAGEMENT_API_URL;
     } else {
       process.env.MANAGEMENT_API_URL = originalManagementApiUrl;
+    }
+    if (originalSystemApiKey === undefined) {
+      delete process.env.EML_SYSTEM_API_KEY;
+    } else {
+      process.env.EML_SYSTEM_API_KEY = originalSystemApiKey;
     }
   });
 
@@ -108,6 +115,7 @@ describe('lookupErrorDetails', () => {
 
   it('returns null and logs when MANAGEMENT_API_URL is unset', async () => {
     delete process.env.MANAGEMENT_API_URL;
+    process.env.EML_SYSTEM_API_KEY = 'test-system-key';
     const result = await lookupErrorDetails(fullParams);
     expect(result).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
@@ -116,8 +124,20 @@ describe('lookupErrorDetails', () => {
     );
   });
 
+  it('returns null and logs when EML_SYSTEM_API_KEY is unset', async () => {
+    process.env.MANAGEMENT_API_URL = 'http://localhost:3000';
+    delete process.env.EML_SYSTEM_API_KEY;
+    const result = await lookupErrorDetails(fullParams);
+    expect(result).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('EML_SYSTEM_API_KEY'),
+    );
+  });
+
   it('builds the correct URL and request init, including a value with a space', async () => {
     process.env.MANAGEMENT_API_URL = 'http://localhost:3000';
+    process.env.EML_SYSTEM_API_KEY = 'test-system-key';
     const body: LookupResponse = {
       appname: 'Billing Service',
       code: 'CODE_1',
@@ -153,13 +173,14 @@ describe('lookupErrorDetails', () => {
     expect(calledUrl.searchParams.get('code')).toBe('CODE_1');
     expect(calledUrl.searchParams.get('environment')).toBe('production');
     expect(requestInit).toMatchObject({
-      headers: { 'Accept-Language': 'en' },
+      headers: { 'Accept-Language': 'en', 'Authorization': 'Bearer test-system-key' },
       cache: 'no-store',
     });
   });
 
   it('returns the parsed JSON body on a 200 response', async () => {
     process.env.MANAGEMENT_API_URL = 'http://localhost:3000';
+    process.env.EML_SYSTEM_API_KEY = 'test-system-key';
     const body: LookupResponse = {
       appname: 'Billing Service',
       code: 'CODE_1',
@@ -190,6 +211,7 @@ describe('lookupErrorDetails', () => {
 
   it('returns null on a non-2xx response, without reading the body', async () => {
     process.env.MANAGEMENT_API_URL = 'http://localhost:3000';
+    process.env.EML_SYSTEM_API_KEY = 'test-system-key';
     const jsonSpy = vi.fn();
     vi.mocked(fetch).mockResolvedValue({
       ok: false,
@@ -204,6 +226,7 @@ describe('lookupErrorDetails', () => {
 
   it('returns null and logs when fetch itself throws', async () => {
     process.env.MANAGEMENT_API_URL = 'http://localhost:3000';
+    process.env.EML_SYSTEM_API_KEY = 'test-system-key';
     vi.mocked(fetch).mockRejectedValue(new Error('network down'));
 
     const result = await lookupErrorDetails(fullParams);

@@ -22,6 +22,10 @@ def environment() -> str | None:
     return os.environ.get("ENVIRONMENT")
 
 
+def api_key() -> str | None:
+    return os.environ.get("EML_API_KEY")
+
+
 def default_language() -> str:
     """No ``LANGUAGE`` environment variable exists. This mirrors the server's own default in
     ``resolveLanguage()`` (error-management-ui/src/app/api/v1/lookup/route.ts) for a

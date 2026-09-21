@@ -19,18 +19,20 @@ const requestTimeout = 3 * time.Second
 
 // lookup calls the Error Management UI's public lookup endpoint —
 // GET /api/v1/lookup?application=&code=&environment= with an Accept-Language header for
-// language (see error-management-ui/src/app/api/v1/lookup/route.ts) — and translates a
-// successful response into a lookupResult.
+// language and an Authorization: Bearer <apiKey> header (see
+// error-management-ui/src/app/api/v1/lookup/route.ts) — and translates a successful response
+// into a lookupResult.
 //
 // Every failure mode (bad configuration, network failure, non-2xx HTTP status, unparseable or
 // unusable response body) is signaled by returning a non-nil error; this function never itself
 // decides to fall back — that's NewError/NewErrorWithLanguage's job (see error.go).
-func lookup(appName, apiBaseURL, environment, code, language string) (lookupResult, error) {
+func lookup(appName, apiBaseURL, environment, apiKey, code, language string) (lookupResult, error) {
 	if strings.TrimSpace(appName) == "" ||
 		strings.TrimSpace(apiBaseURL) == "" ||
-		strings.TrimSpace(environment) == "" {
+		strings.TrimSpace(environment) == "" ||
+		strings.TrimSpace(apiKey) == "" {
 		return lookupResult{}, fmt.Errorf(
-			"missing required configuration: APPNAME, EML_API, and ENVIRONMENT must all be set",
+			"missing required configuration: APPNAME, EML_API, ENVIRONMENT, and EML_API_KEY must all be set",
 		)
 	}
 
@@ -47,6 +49,7 @@ func lookup(appName, apiBaseURL, environment, code, language string) (lookupResu
 		return lookupResult{}, fmt.Errorf("could not build EML lookup request for code %q: %w", code, err)
 	}
 	request.Header.Set("Accept-Language", language)
+	request.Header.Set("Authorization", "Bearer "+apiKey)
 
 	client := &http.Client{Timeout: requestTimeout}
 

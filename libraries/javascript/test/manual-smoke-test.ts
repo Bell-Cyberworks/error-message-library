@@ -11,7 +11,7 @@
  *
  * Run directly via `tsx` (no separate compile step needed for this file):
  *
- *   APPNAME=my-app EML_API=http://localhost:3000 ENVIRONMENT=dev \
+ *   APPNAME=my-app EML_API=http://localhost:3000 ENVIRONMENT=dev EML_API_KEY=your-api-key \
  *     npx tsx test/manual-smoke-test.ts SOME_CODE
  */
 import { EMLError } from '../src/EMLError.js';
@@ -23,7 +23,7 @@ if (!code) {
 }
 
 console.log(
-  `CONFIG APPNAME=${process.env.APPNAME} EML_API=${process.env.EML_API} ENVIRONMENT=${process.env.ENVIRONMENT}`,
+  `CONFIG APPNAME=${process.env.APPNAME} EML_API=${process.env.EML_API} ENVIRONMENT=${process.env.ENVIRONMENT} EML_API_KEY_SET=${!!process.env.EML_API_KEY}`,
 );
 
 const error = await EMLError.forCode(code);

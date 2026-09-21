@@ -7,14 +7,14 @@ to idiomatic TypeScript/Node.js.
 ## Scope: Node.js only
 
 This library targets **Node.js only** — it does not support browser apps, despite what an
-earlier draft of this README said. The three-env-var config pattern (`APPNAME`, `EML_API`,
-`ENVIRONMENT`, read via `process.env`) is fundamentally a server-side/Node concept: a browser
-bundle can't read OS environment variables at runtime the way Node can. Bundlers can only
-inline `process.env.*` values at *build* time, a completely different mechanism this library
-doesn't attempt. Browser support would need a different config mechanism entirely and is a
-separate, future concern — the same kind of deliberate scope-narrowing call made elsewhere in
-this project (see `error-ui`'s README, and the Java library dropping its earlier "AOP"
-design).
+earlier draft of this README said. The four-env-var config pattern (`APPNAME`, `EML_API`,
+`ENVIRONMENT`, `EML_API_KEY`, read via `process.env`) is fundamentally a server-side/Node
+concept: a browser bundle can't read OS environment variables at runtime the way Node can.
+Bundlers can only inline `process.env.*` values at *build* time, a completely different
+mechanism this library doesn't attempt. Browser support would need a different config
+mechanism entirely and is a separate, future concern — the same kind of deliberate
+scope-narrowing call made elsewhere in this project (see `error-ui`'s README, and the Java
+library dropping its earlier "AOP" design).
 
 ## Design: a resilient async factory, not a synchronous constructor
 
@@ -27,7 +27,7 @@ The idiomatic TypeScript/Node equivalent is a **private constructor** plus a **s
 factory**, `EMLError.forCode(...)`:
 
 ```ts
-// Configure via environment variables: APPNAME, EML_API, ENVIRONMENT
+// Configure via environment variables: APPNAME, EML_API, ENVIRONMENT, EML_API_KEY
 throw await EMLError.forCode("FIL1010");
 
 // Or with an explicit language override (defaults to "en" otherwise, matching the server's
@@ -74,7 +74,7 @@ javascript/
 ├── src/
 │   ├── index.ts         — public entry point; re-exports `EMLError` only
 │   ├── EMLError.ts       — the library's entire public surface
-│   ├── config.ts         — lazy env var reads (APPNAME, EML_API, ENVIRONMENT)
+│   ├── config.ts         — lazy env var reads (APPNAME, EML_API, ENVIRONMENT, EML_API_KEY)
 │   ├── lookupClient.ts   — the fetch call + response validation
 │   └── lookupResult.ts   — internal type for the lookup response (+ `resolved`), and the
 │                           local-fallback builder
@@ -102,13 +102,21 @@ to a safe per-field default so future server-side field additions don't break ol
 versions) — is caught internally, logged as a warning via `console.warn`, and replaced with a
 local fallback message (`resolved === false`).
 
+Every request now also sends an `Authorization: Bearer <apiKey>` header — the public lookup
+endpoint requires it — alongside the existing `Accept-Language` header, with `apiKey` sourced
+from the `EML_API_KEY` environment variable. This required no changes to the resilience design
+described above: `EML_API_KEY` participates in the same blank-check as `APPNAME`, `EML_API`,
+and `ENVIRONMENT` (no network attempt if missing/blank), and a missing or invalid key that
+reaches the server simply comes back as a `401` — already covered by the existing "any
+non-2xx HTTP status" fallback path with no special-casing needed.
+
 Both `npm install` and real TypeScript compilation (`tsc`) work fine in this project's
 environment (unlike the Java library's environment, which had no Maven/Gradle available), so
 this library is verified two ways: `npm run build` (a real `tsc` compile) and a manual smoke
 test run directly against a live `error-management-ui` instance:
 
 ```
-APPNAME=my-app EML_API=http://localhost:3000 ENVIRONMENT=dev \
+APPNAME=my-app EML_API=http://localhost:3000 ENVIRONMENT=dev EML_API_KEY=your-api-key \
   npx tsx test/manual-smoke-test.ts SOME_CODE
 ```
 

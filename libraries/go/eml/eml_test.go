@@ -12,19 +12,25 @@ import (
 //
 // Run it explicitly, one scenario per invocation (a known-existing code, a brand-new/
 // never-before-seen code to exercise server-side auto-registration, an unreachable EML_API to
-// exercise the local fallback, an unregistered APPNAME/ENVIRONMENT, or a missing required
-// env var to exercise the no-network-attempt validation failure):
+// exercise the local fallback, an unregistered APPNAME/ENVIRONMENT, a missing/invalid
+// EML_API_KEY to exercise the 401-triggered fallback, or a missing required env var to exercise
+// the no-network-attempt validation failure):
 //
 //	EML_INTEGRATION_TEST=1 APPNAME=my-app EML_API=http://localhost:3000 ENVIRONMENT=dev \
-//	  EML_TEST_CODE=SOME_CODE go test ./eml/... -run TestLookupAgainstLiveServer -v
+//	  EML_API_KEY=my-key EML_TEST_CODE=SOME_CODE go test ./eml/... -run TestLookupAgainstLiveServer -v
 func TestLookupAgainstLiveServer(t *testing.T) {
 	if os.Getenv("EML_INTEGRATION_TEST") == "" {
-		t.Skip("set EML_INTEGRATION_TEST=1 (with APPNAME/EML_API/ENVIRONMENT also set) to run this against a live error-management-ui instance")
+		t.Skip("set EML_INTEGRATION_TEST=1 (with APPNAME/EML_API/ENVIRONMENT/EML_API_KEY also set) to run this against a live error-management-ui instance")
 	}
 	code := os.Getenv("EML_TEST_CODE")
 	if code == "" {
 		t.Fatal("EML_TEST_CODE must be set when EML_INTEGRATION_TEST=1")
 	}
+
+	// NewError reads EML_API_KEY internally via apiKey() (config.go), same as it already does
+	// for APPNAME/EML_API/ENVIRONMENT — no explicit parameter to pass here. The raw key value
+	// is never logged; only whether it's set.
+	t.Logf("EML_API_KEY set=%v", os.Getenv("EML_API_KEY") != "")
 
 	result := NewError(code)
 
@@ -63,6 +69,7 @@ func TestNewErrorNeverReturnsNilAndFallsBackWhenUnconfigured(t *testing.T) {
 	t.Setenv("APPNAME", "")
 	t.Setenv("EML_API", "")
 	t.Setenv("ENVIRONMENT", "")
+	t.Setenv("EML_API_KEY", "")
 
 	result := NewError("SOME_CODE")
 
@@ -137,10 +144,19 @@ func TestLookupRejectsMissingConfiguration(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := lookup(tc.appName, tc.apiBaseURL, tc.environment, "CODE", "en"); err == nil {
+			if _, err := lookup(tc.appName, tc.apiBaseURL, tc.environment, "key", "CODE", "en"); err == nil {
 				t.Error("expected lookup to fail without attempting a network call")
 			}
 		})
+	}
+}
+
+// TestLookupRejectsMissingAPIKey exercises the same no-network-attempt validation failure as
+// TestLookupRejectsMissingConfiguration, but for the EML_API_KEY-backed apiKey parameter
+// specifically.
+func TestLookupRejectsMissingAPIKey(t *testing.T) {
+	if _, err := lookup("app", "http://localhost:3000", "dev", "   ", "CODE", "en"); err == nil {
+		t.Error("expected lookup to fail without attempting a network call when apiKey is blank")
 	}
 }
 

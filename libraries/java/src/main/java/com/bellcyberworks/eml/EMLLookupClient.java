@@ -16,8 +16,9 @@ import java.util.Map;
 /**
  * Calls the Error Management UI's public lookup endpoint —
  * {@code GET /api/v1/lookup?application=&code=&environment=} with an {@code Accept-Language}
- * header for language (see error-management-ui/src/app/api/v1/lookup/route.ts) — and
- * translates a successful response into a {@link LookupResult}.
+ * header for language and an {@code Authorization: Bearer <key>} header for authentication
+ * (see error-management-ui/src/app/api/v1/lookup/route.ts) — and translates a successful
+ * response into a {@link LookupResult}.
  *
  * <p>Every failure mode (bad configuration, network failure, non-2xx status, unparseable or
  * unusable response body) is signaled by throwing {@link EMLLookupFailedException}; this
@@ -28,11 +29,12 @@ final class EMLLookupClient {
     private EMLLookupClient() {
     }
 
-    static LookupResult lookup(String appname, String apiBaseUrl, String environment, String code, String language)
+    static LookupResult lookup(
+            String appname, String apiBaseUrl, String environment, String apiKey, String code, String language)
             throws EMLLookupFailedException {
-        if (isBlank(appname) || isBlank(apiBaseUrl) || isBlank(environment)) {
+        if (isBlank(appname) || isBlank(apiBaseUrl) || isBlank(environment) || isBlank(apiKey)) {
             throw new EMLLookupFailedException(
-                    "Missing required configuration: APPNAME, EML_API, and ENVIRONMENT must all be set");
+                    "Missing required configuration: APPNAME, EML_API, ENVIRONMENT, and EML_API_KEY must all be set");
         }
 
         String baseUrl = apiBaseUrl.endsWith("/") ? apiBaseUrl.substring(0, apiBaseUrl.length() - 1) : apiBaseUrl;
@@ -56,6 +58,7 @@ final class EMLLookupClient {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("Accept-Language", language)
+                .header("Authorization", "Bearer " + apiKey)
                 .timeout(Duration.ofSeconds(3))
                 .GET()
                 .build();

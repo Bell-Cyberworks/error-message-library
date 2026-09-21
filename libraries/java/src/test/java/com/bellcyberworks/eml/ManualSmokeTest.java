@@ -14,7 +14,7 @@ package com.bellcyberworks.eml;
  * <p>Compile and run, e.g.:
  * <pre>
  *   javac -d out $(find src/main src/test -name "*.java")
- *   APPNAME=my-app EML_API=http://localhost:3000 ENVIRONMENT=dev \
+ *   APPNAME=my-app EML_API=http://localhost:3000 ENVIRONMENT=dev EML_API_KEY=my-key \
  *     java -cp out com.bellcyberworks.eml.ManualSmokeTest SOME_CODE
  * </pre>
  *
@@ -38,9 +38,13 @@ public final class ManualSmokeTest {
         }
         String code = args[0];
 
+        String apiKey = System.getenv("EML_API_KEY");
+        boolean apiKeySet = apiKey != null && !apiKey.isBlank();
+
         System.out.println("CONFIG APPNAME=" + System.getenv("APPNAME")
                 + " EML_API=" + System.getenv("EML_API")
-                + " ENVIRONMENT=" + System.getenv("ENVIRONMENT"));
+                + " ENVIRONMENT=" + System.getenv("ENVIRONMENT")
+                + " EML_API_KEY_SET=" + apiKeySet);
 
         try {
             throw new EMLError(code);
