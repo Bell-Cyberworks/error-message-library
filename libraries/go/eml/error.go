@@ -1,8 +1,8 @@
 // Package eml is the library's entire public surface.
 //
 // NewError(code) / NewErrorWithLanguage(code, language) resolve code against the Error
-// Management UI's public lookup API — configured via the APPNAME, EML_API, and ENVIRONMENT
-// environment variables — and always produce a usable *EMLError. If EML itself can't be
+// Management UI's public lookup API — configured via the APPNAME, EML_API, ENVIRONMENT, and
+// EML_API_KEY environment variables — and always produce a usable *EMLError. If EML itself can't be
 // reached, or returns something this library can't use, a local fallback message is used
 // instead; neither function ever panics because of a lookup failure, and neither ever returns
 // nil. That resilience is the entire point of this library: its own error handling must never
@@ -73,8 +73,8 @@ func (e *EMLError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Code, e.FriendlyMessage)
 }
 
-// NewError resolves code against the EML lookup API (APPNAME/EML_API/ENVIRONMENT environment
-// variables, language defaulting to "en") and always returns a usable *EMLError — never nil,
+// NewError resolves code against the EML lookup API (APPNAME/EML_API/ENVIRONMENT/EML_API_KEY
+// environment variables, language defaulting to "en") and always returns a usable *EMLError — never nil,
 // and this function itself never panics due to a lookup failure. If EML can't be reached or
 // returns something unusable, the returned EMLError carries a local fallback message and
 // Resolved is false.
@@ -85,7 +85,7 @@ func NewError(code string) *EMLError {
 // NewErrorWithLanguage is NewError with an explicit language override instead of the "en"
 // default.
 func NewErrorWithLanguage(code, language string) *EMLError {
-	result, err := lookup(appName(), apiBaseURL(), environment(), code, language)
+	result, err := lookup(appName(), apiBaseURL(), environment(), apiKey(), code, language)
 	if err != nil {
 		log.Printf("EML lookup failed for code %q: %v", code, err)
 		result = localFallback(code)

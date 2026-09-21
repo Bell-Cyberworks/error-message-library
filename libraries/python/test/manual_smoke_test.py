@@ -11,7 +11,7 @@ scripting multiple scenarios into a single run.
 
 Run directly via ``python3`` from the ``libraries/python/`` directory:
 
-    APPNAME=my-app EML_API=http://localhost:3000 ENVIRONMENT=dev \\
+    APPNAME=my-app EML_API=http://localhost:3000 ENVIRONMENT=dev EML_API_KEY=your-api-key \\
       python3 test/manual_smoke_test.py SOME_CODE
 
 There is zero guarantee `pip install -e .` / `uv pip install -e .` has been run before this
@@ -43,7 +43,8 @@ def main() -> None:
     print(
         f"CONFIG APPNAME={os.environ.get('APPNAME')} "
         f"EML_API={os.environ.get('EML_API')} "
-        f"ENVIRONMENT={os.environ.get('ENVIRONMENT')}"
+        f"ENVIRONMENT={os.environ.get('ENVIRONMENT')} "
+        f"EML_API_KEY_SET={bool(os.environ.get('EML_API_KEY'))}"
     )
 
     try:

@@ -1,17 +1,17 @@
 import { lookup } from './lookupClient.js';
 import { localFallback, type LookupResult } from './lookupResult.js';
-import { appName, apiBaseUrl, environment, defaultLanguage } from './config.js';
+import { appName, apiBaseUrl, environment, apiKey, defaultLanguage } from './config.js';
 
 /**
  * The library's entire public surface.
  *
  * `EMLError.forCode(code)` resolves `code` against the Error Management UI's public lookup
- * API — configured via the `APPNAME`, `EML_API`, and `ENVIRONMENT` environment variables —
- * and always produces a usable, resolved `Promise<EMLError>`. If EML itself can't be reached,
- * or returns something this library can't use, a local fallback message is used instead;
- * nothing but a successfully-constructed `EMLError` ever escapes `forCode`. That resilience is
- * the entire point of this library: its own error handling must never itself crash the
- * calling application.
+ * API — configured via the `APPNAME`, `EML_API`, `ENVIRONMENT`, and `EML_API_KEY` environment
+ * variables — and always produces a usable, resolved `Promise<EMLError>`. If EML itself can't
+ * be reached, or returns something this library can't use, a local fallback message is used
+ * instead; nothing but a successfully-constructed `EMLError` ever escapes `forCode`. That
+ * resilience is the entire point of this library: its own error handling must never itself
+ * crash the calling application.
  *
  * Unlike the Java library, where `EMLError`'s constructor performs the lookup synchronously,
  * JavaScript has no way to perform a blocking network call inside a constructor — Node's
@@ -72,8 +72,9 @@ export class EMLError extends Error {
 
   /**
    * Resolves `code` against the EML lookup API and returns a usable `EMLError`. Configured
-   * via the `APPNAME`, `EML_API`, and `ENVIRONMENT` environment variables. `language` defaults
-   * to `"en"`, matching the server's own default for a missing `Accept-Language` header.
+   * via the `APPNAME`, `EML_API`, `ENVIRONMENT`, and `EML_API_KEY` environment variables.
+   * `language` defaults to `"en"`, matching the server's own default for a missing
+   * `Accept-Language` header.
    *
    * This promise never rejects: any failure (missing configuration, network failure, a
    * non-2xx response, an unparseable/unusable body) is caught internally, logged as a
@@ -81,7 +82,14 @@ export class EMLError extends Error {
    */
   static async forCode(code: string, language: string = defaultLanguage()): Promise<EMLError> {
     try {
-      const result = await lookup(appName(), apiBaseUrl(), environment(), code, language);
+      const result = await lookup(
+        appName(),
+        apiBaseUrl(),
+        environment(),
+        apiKey(),
+        code,
+        language,
+      );
       return new EMLError(result);
     } catch (e) {
       console.warn(`EML lookup failed for code '${code}': ${e instanceof Error ? e.message : String(e)}`);

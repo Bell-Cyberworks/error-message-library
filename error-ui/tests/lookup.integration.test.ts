@@ -13,9 +13,15 @@ import { lookupErrorDetails } from '../src/lib/lookup';
 // skipped run still shows up clearly as "skipped" in test output rather than silently passing.
 //
 // Run it explicitly, once you know a specific Application/code/environment/language actually
-// exists in whatever error-management-ui instance you're pointing at:
+// exists in whatever error-management-ui instance you're pointing at. MANAGEMENT_API_URL and
+// EML_SYSTEM_API_KEY must both be set — lookupErrorDetails reads them directly from the
+// environment (see src/lib/lookup.ts), so there's no explicit parameter passing for either here.
+// EML_SYSTEM_API_KEY must be a system-level key (created from error-management-ui's
+// /system-api-keys admin page), since it's sent as `Authorization: Bearer <key>` on every
+// lookup request:
 //
 //   EML_INTEGRATION_TEST=1 MANAGEMENT_API_URL=http://localhost:3000 \
+//     EML_SYSTEM_API_KEY=<a-real-system-api-key> \
 //     EML_TEST_APPNAME=my-app EML_TEST_CODE=SOME_CODE EML_TEST_ENVIRONMENT=dev \
 //     EML_TEST_LANGUAGE=en npm test -- tests/lookup.integration.test.ts
 describe('lookupErrorDetails against a live error-management-ui', () => {
@@ -31,7 +37,8 @@ describe('lookupErrorDetails against a live error-management-ui', () => {
         throw new Error(
           'EML_TEST_APPNAME, EML_TEST_CODE, and EML_TEST_ENVIRONMENT must all be set when ' +
             'EML_INTEGRATION_TEST=1 (EML_TEST_LANGUAGE defaults to "en" if unset). ' +
-            'MANAGEMENT_API_URL must also be set, per the library under test.',
+            'MANAGEMENT_API_URL and EML_SYSTEM_API_KEY must also be set, per the library ' +
+            'under test.',
         );
       }
 

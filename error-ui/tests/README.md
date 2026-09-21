@@ -15,18 +15,18 @@ npm run test:watch
 - `tests/lookup.test.ts` — every exported function in `src/lib/lookup.ts`
   (`normalizeParams`, `firstValue`, `lookupErrorDetails`, and the `FALLBACK_HEADER`/
   `FALLBACK_MESSAGE` constants), with `fetch` mocked via Vitest's built-in `vi.stubGlobal`
-  (no separate mocking library) and `MANAGEMENT_API_URL` set/unset directly on `process.env`
-  in `beforeEach`/`afterEach`, restored to its original value after every test so no test
-  leaks env state into another.
+  (no separate mocking library) and `MANAGEMENT_API_URL`/`EML_SYSTEM_API_KEY` set/unset
+  directly on `process.env` in `beforeEach`/`afterEach`, restored to their original values
+  after every test so no test leaks env state into another.
   - Missing-param short-circuits (`appname`/`code`/`environment`/`language`, each tested
-    individually) and the missing-`MANAGEMENT_API_URL` short-circuit — both confirmed to
-    return `null` **without** ever calling `fetch`.
-  - The missing-`MANAGEMENT_API_URL` and thrown-`fetch` failure paths both assert
-    `console.error` was called, matching current behavior.
+    individually) and the missing-`MANAGEMENT_API_URL`/missing-`EML_SYSTEM_API_KEY`
+    short-circuits — all confirmed to return `null` **without** ever calling `fetch`.
+  - The missing-`MANAGEMENT_API_URL`, missing-`EML_SYSTEM_API_KEY`, and thrown-`fetch` failure
+    paths all assert `console.error` was called, matching current behavior.
   - The request built for a successful call: correct `/api/v1/lookup` URL with
     `application`/`code`/`environment` query params (including a value containing a space, to
-    confirm proper encoding), the `Accept-Language` header set from `language`, and
-    `cache: 'no-store'`.
+    confirm proper encoding), the `Accept-Language` header set from `language`, the
+    `Authorization: Bearer <key>` header set from `EML_SYSTEM_API_KEY`, and `cache: 'no-store'`.
   - A `200` response returns the parsed JSON body; a non-2xx response returns `null` **without**
     calling `.json()` on the response — the current code's `if (!response.ok) return null;`
     short-circuits before the body is ever read, and the test asserts the mocked `.json` method
@@ -41,12 +41,15 @@ npm run test:watch
 
   ```bash
   EML_INTEGRATION_TEST=1 MANAGEMENT_API_URL=http://localhost:3000 \
+    EML_SYSTEM_API_KEY=<a-real-system-api-key> \
     EML_TEST_APPNAME=my-app EML_TEST_CODE=SOME_CODE EML_TEST_ENVIRONMENT=dev \
     EML_TEST_LANGUAGE=en npm test -- tests/lookup.integration.test.ts
   ```
 
-  `EML_TEST_LANGUAGE` defaults to `en` if unset. `MANAGEMENT_API_URL` is read the exact same
-  way `src/lib/lookup.ts` already reads it in production — no separate test config layer.
+  `EML_TEST_LANGUAGE` defaults to `en` if unset. `MANAGEMENT_API_URL` and `EML_SYSTEM_API_KEY`
+  are read the exact same way `src/lib/lookup.ts` already reads them in production — no separate
+  test config layer. `EML_SYSTEM_API_KEY` must be a system-level key (created from
+  `error-management-ui`'s `/system-api-keys` admin page), not a per-Application key.
 
 ## What's explicitly out of scope
 

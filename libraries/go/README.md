@@ -36,7 +36,7 @@ call and JSON resolution immediately, inline, and return a fully-resolved `*EMLE
 ## Usage
 
 ```go
-// Configure via environment variables: APPNAME, EML_API, ENVIRONMENT
+// Configure via environment variables: APPNAME, EML_API, ENVIRONMENT, EML_API_KEY
 return eml.NewError("FIL1010")
 
 // Or with an explicit language override (defaults to "en" otherwise, matching the server's own
@@ -81,7 +81,7 @@ go/
 ├── README.md
 └── eml/
     ├── error.go          — the library's entire public surface: EMLError, NewError, NewErrorWithLanguage
-    ├── config.go          — lazy env var reads (APPNAME, EML_API, ENVIRONMENT)
+    ├── config.go          — lazy env var reads (APPNAME, EML_API, ENVIRONMENT, EML_API_KEY)
     ├── lookup_client.go   — the net/http call + response validation
     ├── lookup_result.go   — internal struct for the lookup response (+ Resolved), and the
     │                        local-fallback builder
@@ -95,6 +95,23 @@ library living inside a larger, non-Go-module repo). Package name: `eml`, import
 `eml.NewError(...)`.
 
 ## Status
+
+The public lookup endpoint requires authentication: `lookup_client.go` sends an
+`Authorization: Bearer <key>` header — built from the `EML_API_KEY` environment variable, read
+lazily via `apiKey()` in `config.go`, the same lazy-read pattern as `appName()`/`apiBaseURL()`/
+`environment()` — on every request, alongside the existing `Accept-Language` header. `lookup()`'s
+existing blank-configuration check (`strings.TrimSpace`, no network call attempted if anything
+required is missing) now also covers `apiKey`, matching how it already covered `appName`,
+`apiBaseURL`, and `environment`.
+
+No other behavior changes as a result: `NewError`/`NewErrorWithLanguage`'s existing resilience
+design — never panics, never returns `nil`, falls back to a local message on *any* non-2xx HTTP
+status — already covers a missing or invalid `EML_API_KEY` with zero additional logic. A blank
+`EML_API_KEY` fails the pre-flight validation check (no network call attempted, same as a blank
+`APPNAME`/`EML_API`/`ENVIRONMENT` today); a non-blank but invalid/expired key reaches the server
+and comes back as an HTTP `401`, which was already just one more non-2xx status the existing
+`response.StatusCode < 200 || response.StatusCode >= 300` check in `lookup_client.go` treated as
+a lookup failure — the local fallback (`Resolved == false`) applies identically either way.
 
 Implemented. Zero dependencies beyond the Go standard library — only `net/http`,
 `encoding/json`, `net/url`, `os`, `log`, and `time`, all requiring nothing beyond the Go 1.21+
@@ -160,10 +177,11 @@ environment variable and calls `t.Skip` when it isn't set — this project has n
 fails by default whenever no server happens to be up would be a bad citizen in this codebase.
 Run it explicitly, one scenario per invocation (a known-existing code, a brand-new/
 never-before-seen code to exercise server-side auto-registration, an unreachable `EML_API` to
-exercise the local fallback, an unregistered `APPNAME`/`ENVIRONMENT`, or a missing required env
-var to exercise the no-network-attempt validation failure):
+exercise the local fallback, an unregistered `APPNAME`/`ENVIRONMENT`, a missing or invalid
+`EML_API_KEY` to exercise the `401`-triggered fallback, or a missing required env var to
+exercise the no-network-attempt validation failure):
 
 ```
 EML_INTEGRATION_TEST=1 APPNAME=my-app EML_API=http://localhost:3000 ENVIRONMENT=dev \
-  EML_TEST_CODE=SOME_CODE go test ./eml/... -run TestLookupAgainstLiveServer -v
+  EML_API_KEY=my-key EML_TEST_CODE=SOME_CODE go test ./eml/... -run TestLookupAgainstLiveServer -v
 ```

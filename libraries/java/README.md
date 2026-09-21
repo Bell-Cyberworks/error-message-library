@@ -13,7 +13,7 @@ Throwing `new EMLError(code)` is the entire call site; nothing else is required.
 ## Usage
 
 ```java
-// Configure once per app via environment variables: APPNAME, EML_API, ENVIRONMENT
+// Configure once per app via environment variables: APPNAME, EML_API, ENVIRONMENT, EML_API_KEY
 throw new EMLError("FIL1010");
 
 // Or with an explicit language (defaults to "en" otherwise, matching the server's own default):
@@ -49,7 +49,7 @@ java/
 └── src/
     ├── main/java/com/bellcyberworks/eml/
     │   ├── EMLError.java              — the library's entire public surface
-    │   ├── EMLConfig.java             — lazy env var reads (APPNAME, EML_API, ENVIRONMENT)
+    │   ├── EMLConfig.java             — lazy env var reads (APPNAME, EML_API, ENVIRONMENT, EML_API_KEY)
     │   ├── EMLLookupClient.java       — HTTP call + response validation
     │   ├── LookupResult.java          — internal DTO for the lookup response (+ `resolved`)
     │   ├── EMLLookupFailedException.java — internal "fall back" signal
@@ -65,12 +65,19 @@ Implemented. Zero runtime/compile-scope dependencies — only `java.net.http.Htt
 (`MinimalJsonReader`), both requiring nothing beyond the JDK itself (Java 17 target,
 `HttpClient` itself only needs Java 11).
 
+Every request sends an `Authorization: Bearer <key>` header, populated from `EML_API_KEY`,
+since the public lookup endpoint now requires authentication. A missing `EML_API_KEY` is
+treated exactly like a missing `APPNAME`/`EML_API`/`ENVIRONMENT` — the required-configuration
+check fails before any network attempt. A present-but-invalid key is likewise nothing
+special: the server simply answers with a non-2xx (`401`) status, which this library already
+treats as an ordinary lookup failure.
+
 Resilience is the core design point: `EMLError`'s constructor never lets a lookup failure
 escape as some other exception type. Any expected failure — invalid/missing configuration,
-a network error, a non-2xx HTTP status, or a response body missing the fields this library
-needs — is caught internally, logged as a warning, and replaced with a local fallback
-message (`isResolved() == false`). Only a genuine JVM `Error` (e.g. `OutOfMemoryError`) is
-left to propagate.
+a network error, a non-2xx HTTP status (including a `401` from a missing or invalid API
+key), or a response body missing the fields this library needs — is caught internally,
+logged as a warning, and replaced with a local fallback message (`isResolved() == false`).
+Only a genuine JVM `Error` (e.g. `OutOfMemoryError`) is left to propagate.
 
 `mvn` and `gradle` were not available in the environment this library was built in, so it's
 currently verified with a manual smoke test

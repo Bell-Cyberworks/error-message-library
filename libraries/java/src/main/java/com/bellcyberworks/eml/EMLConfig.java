@@ -24,6 +24,10 @@ final class EMLConfig {
         return System.getenv("ENVIRONMENT");
     }
 
+    static String apiKey() {
+        return System.getenv("EML_API_KEY");
+    }
+
     /**
      * No {@code LANGUAGE} environment variable exists. This mirrors the server's own default
      * in {@code resolveLanguage()}

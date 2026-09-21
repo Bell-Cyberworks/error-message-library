@@ -20,6 +20,10 @@ func environment() string {
 	return os.Getenv("ENVIRONMENT")
 }
 
+func apiKey() string {
+	return os.Getenv("EML_API_KEY")
+}
+
 // defaultLanguage returns "en". There is no LANGUAGE environment variable — this mirrors the
 // server's own default in resolveLanguage() (error-management-ui/src/app/api/v1/lookup/route.ts)
 // for a missing/absent Accept-Language header, and matches the Java, JavaScript, and Python

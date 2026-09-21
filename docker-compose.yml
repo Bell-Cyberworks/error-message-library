@@ -27,6 +27,7 @@ services:
       - error-management-ui
     environment:
       MANAGEMENT_API_URL: http://error-management-ui:3000
+      EML_SYSTEM_API_KEY: ${EML_SYSTEM_API_KEY:?set EML_SYSTEM_API_KEY in .env or the shell environment to a system-level key created from error-management-ui's /system-api-keys admin page}
     ports:
       - "3001:3000"
 

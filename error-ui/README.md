@@ -52,6 +52,17 @@ Runs as one of the services in the root [docker-compose.yml](../docker-compose.y
 `code`, and `friendlyMessage` fields. Any missing param, network failure, or non-2xx response
 renders a generic fallback card instead of crashing.
 
+**Required environment variables:**
+- `MANAGEMENT_API_URL` — base URL of the `error-management-ui` instance to call.
+- `EML_SYSTEM_API_KEY` — a **system-level** API key, sent as `Authorization: Bearer <key>` on
+  every lookup request, since `GET /api/v1/lookup` now requires authentication. This must be a
+  system-level key, not a per-Application key — Error UI resolves whichever Application a caller
+  sends it via the `appname` query param, so it can't hold one Application's key ahead of time.
+  Create one from `error-management-ui`'s `/system-api-keys` admin page (Admin only); see
+  [error-management-ui's README](../error-management-ui/README.md#api-key-authentication) for
+  details. If either variable is unset, `lookupErrorDetails` logs an error and returns `null`
+  (rendering the generic fallback card) without attempting a request.
+
 **Test suite (new):** the param-normalization and lookup logic that used to live inline in
 `src/app/page.tsx` has been extracted into `src/lib/lookup.ts` (`normalizeParams`, `firstValue`,
 `lookupErrorDetails`, the `LookupResponse`/`ErrorPageParams`/`RawSearchParams` types, and the
@@ -65,9 +76,10 @@ behavior, same JSX, no logic changes.
 - A second, opt-in integration test (`tests/lookup.integration.test.ts`) exercises
   `lookupErrorDetails` against a real, running `error-management-ui` instance. It's skipped by
   default and only runs when explicitly invoked with `EML_INTEGRATION_TEST=1` plus a real
-  `MANAGEMENT_API_URL` and `EML_TEST_APPNAME`/`EML_TEST_CODE`/`EML_TEST_ENVIRONMENT`/
-  `EML_TEST_LANGUAGE` (defaults to `en`) pointing at data that actually exists in that
-  instance. See `tests/README.md` for the exact invocation.
+  `MANAGEMENT_API_URL`, a real system-level `EML_SYSTEM_API_KEY`, and
+  `EML_TEST_APPNAME`/`EML_TEST_CODE`/`EML_TEST_ENVIRONMENT`/`EML_TEST_LANGUAGE` (defaults to
+  `en`) pointing at data that actually exists in that instance. See `tests/README.md` for the
+  exact invocation.
 - **Explicitly out of scope:** full page-rendering/component tests. `page.tsx` is an async
   Server Component; no browser automation tool (e.g. Playwright) is available in this
   environment, and React Testing Library's async-Server-Component support isn't solid enough

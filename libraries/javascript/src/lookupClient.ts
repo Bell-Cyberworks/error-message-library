@@ -18,8 +18,9 @@ const REQUEST_TIMEOUT_MS = 3000;
 /**
  * Calls the Error Management UI's public lookup endpoint —
  * `GET /api/v1/lookup?application=&code=&environment=` with an `Accept-Language` header for
- * language (see error-management-ui/src/app/api/v1/lookup/route.ts) — and translates a
- * successful response into a {@link LookupResult}.
+ * language and an `Authorization: Bearer <apiKey>` header for authentication (see
+ * error-management-ui/src/app/api/v1/lookup/route.ts) — and translates a successful response
+ * into a {@link LookupResult}.
  *
  * Every failure mode (bad configuration, network failure, non-2xx HTTP status, unparseable or
  * unusable response body) is signaled by throwing {@link LookupFailedError}; this function
@@ -29,6 +30,7 @@ export async function lookup(
   appname: string | undefined,
   apiBaseUrl: string | undefined,
   environment: string | undefined,
+  apiKey: string | undefined,
   code: string,
   language: string,
 ): Promise<LookupResult> {
@@ -38,10 +40,12 @@ export async function lookup(
     apiBaseUrl === undefined ||
     apiBaseUrl.trim().length === 0 ||
     environment === undefined ||
-    environment.trim().length === 0
+    environment.trim().length === 0 ||
+    apiKey === undefined ||
+    apiKey.trim().length === 0
   ) {
     throw new LookupFailedError(
-      'Missing required configuration: APPNAME, EML_API, and ENVIRONMENT must all be set',
+      'Missing required configuration: APPNAME, EML_API, ENVIRONMENT, and EML_API_KEY must all be set',
     );
   }
 
@@ -59,7 +63,7 @@ export async function lookup(
     // idiomatic Node equivalent of Java's connect(2s)/request(3s) pair. 3s covers the whole
     // request/response cycle.
     response = await fetch(url, {
-      headers: { 'Accept-Language': language },
+      headers: { 'Accept-Language': language, 'Authorization': `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (e) {
