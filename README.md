@@ -1,8 +1,10 @@
 # Error Message Library (EML)
 
-Manage, change, and localize every error message in every app from one centralized system — self-hosted, so any company can download it and run it entirely inside their own environment.
+Error Message Library was originally coded several years ago in a different repository.  This repository is now a public repository where the tool has been recoded with some AI assistance.  The concept remains the same for the tooling.  Manage, change, and localize every error message in every app from one centralized system — self-hosted, so any company can download it and run it entirely inside their own environment.
 
-Instead of hardcoding error strings inside individual applications, error messages (codes, default text, translations, HTTP status, display mode, etc.) are authored and managed centrally, and every app resolves them at runtime through a small per-language client library.
+Instead of hardcoding error strings inside individual applications, error messages (codes, default text, translations, HTTP status, display mode, etc.) are authored and managed centrally, and every app resolves them at runtime through a small per-language client library.  This benefitted Architects, Developers, Project Managers, and Metrics.  A large scale project created several challenge where Error Codes were not always the priority.  Developers would mistype an error code, or project managers wanted a change to the wording.  Why create code changes and add to work for simple things.  There is a host of other reasons for this tool, but in general it was to make everyones life a little easier.  
+
+Enjoy the use of this code if you wish.  
 
 ## Why self-hosted
 
